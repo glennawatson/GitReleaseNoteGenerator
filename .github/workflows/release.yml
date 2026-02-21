@@ -78,7 +78,7 @@ jobs:
       - name: Generate release notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --configuration Release -- --version "${{ steps.nbgv.outputs.SemVer2 }}" --output-file release-notes.md
+        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --configuration Release --framework net10.0 -- --version "${{ steps.nbgv.outputs.SemVer2 }}" --output-file release-notes.md
 
       - name: Create GitHub Release
         env:
