@@ -88,60 +88,72 @@ internal static partial class GenerateCommand
                 builder.AddConsole().SetMinimumLevel(LogLevel.Information));
             var logger = loggerFactory.CreateLogger("GitReleaseNoteGenerator");
 
-            var token = parseResult.GetValue(tokenOption) ?? GitHubActionEnvironment.Token;
-            var owner = parseResult.GetValue(ownerOption) ?? GitHubActionEnvironment.RepositoryOwner;
-            var repo = parseResult.GetValue(repoOption) ?? GitHubActionEnvironment.RepositoryName;
-            var baseRef = parseResult.GetValue(baseRefOption);
-            var headRef = parseResult.GetValue(headRefOption);
-            var version = parseResult.GetValue(versionOption);
-            var outputFile = parseResult.GetValue(outputFileOption);
-            var githubOutput = parseResult.GetValue(githubOutputOption);
-            var outputName = parseResult.GetValue(outputNameOption) ?? "changelog";
-
-            if (string.IsNullOrEmpty(token))
+            try
             {
-                LogTokenRequired(logger);
-                await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
-                return;
-            }
+                var token = parseResult.GetValue(tokenOption) ?? GitHubActionEnvironment.Token;
+                var owner = parseResult.GetValue(ownerOption) ?? GitHubActionEnvironment.RepositoryOwner;
+                var repo = parseResult.GetValue(repoOption) ?? GitHubActionEnvironment.RepositoryName;
+                var baseRef = parseResult.GetValue(baseRefOption);
+                var headRef = parseResult.GetValue(headRefOption);
+                var version = parseResult.GetValue(versionOption);
+                var outputFile = parseResult.GetValue(outputFileOption);
+                var githubOutput = parseResult.GetValue(githubOutputOption);
+                var outputName = parseResult.GetValue(outputNameOption) ?? "changelog";
 
-            if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
-            {
-                LogRepoRequired(logger);
-                await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(version))
-            {
-                LogDetectingVersion(logger);
-                version = await VersionDetector.DetectVersionAsync(Directory.GetCurrentDirectory(), logger).ConfigureAwait(false);
-
-                if (string.IsNullOrEmpty(version))
+                if (string.IsNullOrEmpty(token))
                 {
-                    LogVersionDetectionFailed(logger);
-                    await Console.Error.WriteLineAsync("Error: Could not auto-detect version. Specify --version explicitly or install NBGV.").ConfigureAwait(false);
+                    LogTokenRequired(logger);
+                    await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
+                    Environment.ExitCode = 1;
                     return;
                 }
 
-                LogDetectedVersion(logger, version);
+                if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repo))
+                {
+                    LogRepoRequired(logger);
+                    await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(version))
+                {
+                    LogDetectingVersion(logger);
+                    version = await VersionDetector.DetectVersionAsync(Directory.GetCurrentDirectory(), logger).ConfigureAwait(false);
+
+                    if (string.IsNullOrEmpty(version))
+                    {
+                        LogVersionDetectionFailed(logger);
+                        await Console.Error.WriteLineAsync("Error: Could not auto-detect version. Specify --version explicitly or install NBGV.").ConfigureAwait(false);
+                        Environment.ExitCode = 1;
+                        return;
+                    }
+
+                    LogDetectedVersion(logger, version);
+                }
+
+                var client = GitHubClientFactory.Create(token);
+                var generator = new ReleaseNoteGenerator(client, logger);
+
+                var releaseNotes = await generator.GenerateAsync(owner, repo, version, baseRef, headRef).ConfigureAwait(false);
+
+                OutputWriter.WriteToStdout(releaseNotes);
+
+                if (outputFile is not null)
+                {
+                    await OutputWriter.WriteToFileAsync(releaseNotes, outputFile, logger).ConfigureAwait(false);
+                }
+
+                if (githubOutput)
+                {
+                    await OutputWriter.WriteToGitHubOutputAsync(releaseNotes, outputName, logger).ConfigureAwait(false);
+                }
             }
-
-            var client = GitHubClientFactory.Create(token);
-            var generator = new ReleaseNoteGenerator(client, logger);
-
-            var releaseNotes = await generator.GenerateAsync(owner, repo, version, baseRef, headRef).ConfigureAwait(false);
-
-            OutputWriter.WriteToStdout(releaseNotes);
-
-            if (outputFile is not null)
+            catch (Exception ex)
             {
-                await OutputWriter.WriteToFileAsync(releaseNotes, outputFile, logger).ConfigureAwait(false);
-            }
-
-            if (githubOutput)
-            {
-                await OutputWriter.WriteToGitHubOutputAsync(releaseNotes, outputName, logger).ConfigureAwait(false);
+                LogUnhandledError(logger, ex);
+                await Console.Error.WriteLineAsync($"Error: {ex.Message}").ConfigureAwait(false);
+                Environment.ExitCode = 1;
             }
         });
 
@@ -183,4 +195,12 @@ internal static partial class GenerateCommand
     /// <param name="version">The detected version string.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Detected version: {Version}")]
     private static partial void LogDetectedVersion(ILogger logger, string version);
+
+    /// <summary>
+    /// Logs an unhandled error during release note generation.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="exception">The exception that occurred.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Release note generation failed")]
+    private static partial void LogUnhandledError(ILogger logger, Exception exception);
 }
