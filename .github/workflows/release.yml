@@ -1,14 +1,15 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   build:
+    environment:
+      name: release
     runs-on: windows-latest
     outputs:
       nbgv-version: ${{ steps.nbgv.outputs.SemVer2 }}
@@ -42,12 +43,24 @@ jobs:
         with:
           name: nuget
           path: packages/*.nupkg
-          retention-days: 5
+          if-no-files-found: error
 
   sign-and-release:
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: release
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
       - name: Download packages
         uses: actions/download-artifact@v4
         with:
@@ -68,13 +81,25 @@ jobs:
           environment_name: PROD
           jvm_max_memory: 2048M
 
+      - name: Upload signed packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-nuget
+          path: ./signed/*.nupkg
+          if-no-files-found: error
+
       - name: Push to NuGet
         run: |
           for pkg in ./signed/*.nupkg; do
-            dotnet nuget push "$pkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push "$pkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
           done
+
+      - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --configuration Release -- --version "${{ needs.build.outputs.nbgv-version }}" --output-file release-notes.md
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "v${{ needs.build.outputs.nbgv-version }}" --generate-notes
+        run: gh release create "${{ needs.build.outputs.nbgv-version }}" --repo "${{ github.repository }}" --title "${{ needs.build.outputs.nbgv-version }}" --notes-file release-notes.md
