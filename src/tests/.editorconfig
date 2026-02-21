@@ -1,0 +1,5 @@
+# Test project overrides
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none             # Allow underscores in test method names
+dotnet_diagnostic.SA1615.severity = none             # Don't require return value docs on test methods
+dotnet_diagnostic.CA1812.severity = none             # Test classes are instantiated by the framework

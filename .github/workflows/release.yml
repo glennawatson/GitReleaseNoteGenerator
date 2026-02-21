@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      nbgv-version: ${{ steps.nbgv.outputs.SemVer2 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: dotnet/nbgv@v0.4.2
+        id: nbgv
+        with:
+          setAllVars: true
+
+      - name: Restore
+        run: dotnet restore src/GitReleaseNoteGenerator.slnx
+
+      - name: Build
+        run: dotnet build src/GitReleaseNoteGenerator.slnx --no-restore --configuration Release
+
+      - name: Pack
+        run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release -o packages
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget
+          path: packages/*.nupkg
+          retention-days: 5
+
+  sign-and-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget
+          path: packages
+
+      - name: Sign packages with SSL.com eSigner
+        uses: SSLcom/esigner-codesign@v1.3.2
+        with:
+          command: batch_sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          dir_path: ./packages
+          output_path: ./signed
+          malware_block: false
+          environment_name: PROD
+          jvm_max_memory: 2048M
+
+      - name: Push to NuGet
+        run: |
+          for pkg in ./signed/*.nupkg; do
+            dotnet nuget push "$pkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "v${{ needs.build.outputs.nbgv-version }}" --generate-notes

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="tests/GitReleaseNoteGenerator.Tests/GitReleaseNoteGenerator.Tests.csproj" />
+  </Folder>
+  <Folder Name="/_Solution Items/">
+    <File Path="../.github/workflows/ci.yml" />
+    <File Path="../.github/workflows/release.yml" />
+    <File Path="../README.md" />
+    <File Path="../version.json" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="testconfig.json" />
+  </Folder>
+</Solution>

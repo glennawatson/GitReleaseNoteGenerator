@@ -394,5 +394,20 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# JetBrains Rider
+# JetBrains
+.idea/
 *.sln.iml
+
+# Fody Weavers (for tests)
+src/Tools/
+
+# Xamarin.Android Resource.Designer.cs files
+**/*.Android/**/[Rr]esource.[Dd]esigner.cs
+**/*.Droid/**/[Rr]esource.[Dd]esigner.cs
+**/Android/**/[Rr]esource.[Dd]esigner.cs
+**/Droid/**/[Rr]esource.[Dd]esigner.cs
+**/*.Android.*/**/[Rr]esource.[Dd]esigner.cs
+**/*.Droid.*/**/[Rr]esource.[Dd]esigner.cs
+
+# API Approval
+src/*.Tests/API/*.received.txt
