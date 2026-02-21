@@ -12,7 +12,7 @@ dotnet tool install -g GitReleaseNoteGenerator
 
 ```bash
 # Generate release notes for the latest release
-git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --version v2.0.0
+git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --release-version v2.0.0
 
 # Auto-detect version via NBGV, write to file
 git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --output-file release-notes.md
@@ -30,7 +30,7 @@ git-release-notes --github-output --output-name changelog
 | `--repo` | string | From `GITHUB_REPOSITORY` env | Repository name |
 | `--base-ref` | string | Latest release tag | Base ref to compare from |
 | `--head-ref` | string | Default branch | Head ref to compare to |
-| `--version` | string | Auto-detect via NBGV | Version string for the heading |
+| `--release-version` | string | Auto-detect via NBGV | Version string for the heading |
 | `--output-file` | path | _(none)_ | Write release notes to a file |
 | `--github-output` | flag | `false` | Write to `GITHUB_OUTPUT` |
 | `--output-name` | string | `changelog` | Variable name for `GITHUB_OUTPUT` |
@@ -77,7 +77,7 @@ jobs:
       - name: Generate Release Notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: git-release-notes --version ${{ github.ref_name }} --output-file release-notes.md
+        run: git-release-notes --release-version ${{ github.ref_name }} --output-file release-notes.md
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

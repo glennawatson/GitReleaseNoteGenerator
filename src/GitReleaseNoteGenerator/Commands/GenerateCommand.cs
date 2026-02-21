@@ -47,7 +47,7 @@ internal static partial class GenerateCommand
             Description = "Head ref to compare to (defaults to default branch)",
         };
 
-        var versionOption = new Option<string?>("--version")
+        var versionOption = new Option<string?>("--release-version")
         {
             Description = "Version string for release notes (defaults to NBGV auto-detection)",
         };
@@ -90,6 +90,8 @@ internal static partial class GenerateCommand
 
             try
             {
+                Console.WriteLine("Starting release note generation...");
+
                 var token = parseResult.GetValue(tokenOption) ?? GitHubActionEnvironment.Token;
                 var owner = parseResult.GetValue(ownerOption) ?? GitHubActionEnvironment.RepositoryOwner;
                 var repo = parseResult.GetValue(repoOption) ?? GitHubActionEnvironment.RepositoryName;
@@ -99,6 +101,12 @@ internal static partial class GenerateCommand
                 var outputFile = parseResult.GetValue(outputFileOption);
                 var githubOutput = parseResult.GetValue(githubOutputOption);
                 var outputName = parseResult.GetValue(outputNameOption) ?? "changelog";
+
+                Console.WriteLine($"Token present: {!string.IsNullOrEmpty(token)}");
+                Console.WriteLine($"Owner: {owner ?? "(not set)"}");
+                Console.WriteLine($"Repo: {repo ?? "(not set)"}");
+                Console.WriteLine($"Version: {version ?? "(auto-detect)"}");
+                Console.WriteLine($"Output file: {outputFile?.FullName ?? "(none)"}");
 
                 if (string.IsNullOrEmpty(token))
                 {
@@ -124,7 +132,7 @@ internal static partial class GenerateCommand
                     if (string.IsNullOrEmpty(version))
                     {
                         LogVersionDetectionFailed(logger);
-                        await Console.Error.WriteLineAsync("Error: Could not auto-detect version. Specify --version explicitly or install NBGV.").ConfigureAwait(false);
+                        await Console.Error.WriteLineAsync("Error: Could not auto-detect version. Specify --release-version explicitly or install NBGV.").ConfigureAwait(false);
                         Environment.ExitCode = 1;
                         return;
                     }
@@ -132,16 +140,21 @@ internal static partial class GenerateCommand
                     LogDetectedVersion(logger, version);
                 }
 
+                Console.WriteLine($"Generating release notes for {owner}/{repo} version {version}...");
+
                 var client = GitHubClientFactory.Create(token);
                 var generator = new ReleaseNoteGenerator(client, logger);
 
                 var releaseNotes = await generator.GenerateAsync(owner, repo, version, baseRef, headRef).ConfigureAwait(false);
+
+                Console.WriteLine($"Release notes generated ({releaseNotes.Length} characters)");
 
                 OutputWriter.WriteToStdout(releaseNotes);
 
                 if (outputFile is not null)
                 {
                     await OutputWriter.WriteToFileAsync(releaseNotes, outputFile, logger).ConfigureAwait(false);
+                    Console.WriteLine($"Written to {outputFile.FullName}");
                 }
 
                 if (githubOutput)
@@ -185,7 +198,7 @@ internal static partial class GenerateCommand
     /// Logs that version auto-detection failed.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Could not auto-detect version. Specify --version explicitly or install NBGV")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Could not auto-detect version. Specify --release-version explicitly or install NBGV")]
     private static partial void LogVersionDetectionFailed(ILogger logger);
 
     /// <summary>
