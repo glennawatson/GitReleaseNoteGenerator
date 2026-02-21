@@ -17,17 +17,20 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: dotnet/nbgv@v0.4.2
+      - name: Setup NBGV
+        uses: dotnet/nbgv@v0.4.2
         with:
           setAllVars: true
 
@@ -40,15 +43,3 @@ jobs:
       - name: Test
         working-directory: src
         run: dotnet test --solution GitReleaseNoteGenerator.slnx --no-build --configuration Release
-
-      - name: Pack
-        if: matrix.os == 'windows-latest'
-        run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release
-
-      - name: Upload packages
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget
-          path: '**/*.nupkg'
-          retention-days: 5

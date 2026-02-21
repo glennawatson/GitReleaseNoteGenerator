@@ -8,24 +8,28 @@ permissions:
   id-token: write
 
 jobs:
-  build:
+  release:
+    runs-on: ubuntu-latest
     environment:
       name: release
-    runs-on: windows-latest
-    outputs:
-      nbgv-version: ${{ steps.nbgv.outputs.SemVer2 }}
+    permissions:
+      contents: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: dotnet/nbgv@v0.4.2
+      - name: Setup NBGV
+        uses: dotnet/nbgv@v0.4.2
         id: nbgv
         with:
           setAllVars: true
@@ -39,38 +43,6 @@ jobs:
       - name: Pack
         run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release -o packages
 
-      - name: Upload packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget
-          path: packages/*.nupkg
-          if-no-files-found: error
-
-  sign-and-release:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: release
-    permissions:
-      contents: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-
-      - name: Download packages
-        uses: actions/download-artifact@v4
-        with:
-          name: nuget
-          path: packages
-
       - name: Sign packages with SSL.com eSigner
         uses: SSLcom/esigner-codesign@v1.3.2
         with:
@@ -81,8 +53,7 @@ jobs:
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           dir_path: ./packages
           output_path: ./signed
-          malware_block: false
-          environment_name: PROD
+          malware_block: true
           jvm_max_memory: 2048M
 
       - name: Upload signed packages
@@ -107,9 +78,9 @@ jobs:
       - name: Generate release notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --configuration Release -- --version "${{ needs.build.outputs.nbgv-version }}" --output-file release-notes.md
+        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --configuration Release -- --version "${{ steps.nbgv.outputs.SemVer2 }}" --output-file release-notes.md
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ needs.build.outputs.nbgv-version }}" --repo "${{ github.repository }}" --title "${{ needs.build.outputs.nbgv-version }}" --notes-file release-notes.md
+        run: gh release create "${{ steps.nbgv.outputs.SemVer2 }}" --repo "${{ github.repository }}" --title "${{ steps.nbgv.outputs.SemVer2 }}" --notes-file release-notes.md
