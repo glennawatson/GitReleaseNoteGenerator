@@ -40,6 +40,21 @@ jobs:
       - name: Build
         run: dotnet build src/GitReleaseNoteGenerator.slnx --no-restore --configuration Release
 
+      - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --configuration Release --framework net10.0 -- --release-version "${{ steps.nbgv.outputs.SemVer2 }}" --output-file "${{ github.workspace }}/release-notes.md"
+
+      - name: Verify release notes exist
+        run: |
+          if [ ! -f "${{ github.workspace }}/release-notes.md" ]; then
+            echo "Error: release-notes.md was not generated"
+            exit 1
+          fi
+          echo "Release notes file size: $(wc -c < "${{ github.workspace }}/release-notes.md") bytes"
+          echo "--- Preview ---"
+          head -20 "${{ github.workspace }}/release-notes.md"
+
       - name: Pack
         run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release -o packages
 
@@ -74,21 +89,6 @@ jobs:
           for pkg in ./signed/*.nupkg; do
             dotnet nuget push "$pkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           done
-
-      - name: Generate release notes
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --framework net10.0 -- --release-version "${{ steps.nbgv.outputs.SemVer2 }}" --output-file "${{ github.workspace }}/release-notes.md"
-
-      - name: Verify release notes exist
-        run: |
-          if [ ! -f "${{ github.workspace }}/release-notes.md" ]; then
-            echo "Error: release-notes.md was not generated"
-            exit 1
-          fi
-          echo "Release notes file size: $(wc -c < "${{ github.workspace }}/release-notes.md") bytes"
-          echo "--- Preview ---"
-          head -20 "${{ github.workspace }}/release-notes.md"
 
       - name: Create GitHub Release
         env:
