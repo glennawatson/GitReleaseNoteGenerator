@@ -1,0 +1,101 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  analyze:
+    name: Build, test, and analyze
+    runs-on: ubuntu-latest
+    # Skip on PRs from forks — they have no access to SONAR_TOKEN.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        # Pin to 21 to match the JRE the scanner would otherwise provision, so
+        # sonar.scanner.skipJreProvisioning=true can reuse it instead of downloading one.
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache SonarScanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/sonar-scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarScanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/sonar-scanner"
+          dotnet tool update dotnet-sonarscanner --tool-path "${{ runner.temp }}/sonar-scanner"
+
+      - name: Restore
+        working-directory: src
+        run: dotnet restore GitReleaseNoteGenerator.slnx
+
+      - name: Begin Sonar analysis
+        working-directory: src
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          "${{ runner.temp }}/sonar-scanner/dotnet-sonarscanner" begin \
+            /k:"glennawatson_GitReleaseNoteGenerator" \
+            /o:"glennawatson" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.scanner.skipJreProvisioning=true \
+            /d:sonar.cs.vscoveragexml.reportsPaths="**/TestResults/**/sonar-coverage.xml" \
+            /d:sonar.exclusions="**/tests/**,**/benchmarks/**,**/tools/**" \
+            /d:sonar.coverage.exclusions="**/tests/**,**/benchmarks/**,**/tools/**" \
+            /d:sonar.cpd.exclusions="**/tests/**,**/benchmarks/**,**/tools/**" \
+            /d:sonar.test.exclusions="**/tests/**,**/benchmarks/**,**/tools/**"
+
+      - name: Build
+        working-directory: src
+        run: dotnet build GitReleaseNoteGenerator.slnx --no-restore --configuration Release
+
+      - name: Test with MTP coverage
+        working-directory: src
+        run: dotnet test --solution GitReleaseNoteGenerator.slnx --configuration Release --no-restore -- --coverage --coverage-output-format xml --coverage-output sonar-coverage.xml
+
+      - name: End Sonar analysis
+        working-directory: src
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          "${{ runner.temp }}/sonar-scanner/dotnet-sonarscanner" end \
+            /d:sonar.token="${SONAR_TOKEN}"

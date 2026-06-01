@@ -14,17 +14,25 @@ on:
           - patch
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  release:
+  # ============================
+  # BUILD: compute the version, tag, build/pack, and produce the release notes.
+  # Packages are uploaded UNSIGNED for the container sign job to pick up.
+  # ============================
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: release
     permissions:
       contents: write
-      id-token: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,25 +111,96 @@ jobs:
       - name: Pack
         run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release -o packages
 
-      - name: Sign packages with SSL.com eSigner
-        uses: SSLcom/esigner-codesign@v1.3.2
+      - name: Upload unsigned packages
+        uses: actions/upload-artifact@v4
         with:
-          command: batch_sign
-          username: ${{ secrets.ES_USERNAME }}
-          password: ${{ secrets.ES_PASSWORD }}
-          credential_id: ${{ secrets.CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
-          dir_path: ./packages
-          output_path: ./signed
-          malware_block: true
-          jvm_max_memory: 2048M
+          name: unsigned-nuget
+          path: packages/*.nupkg
+          if-no-files-found: error
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  # ============================
+  # SIGN with Certum SimplySign — runs inside the prebuilt signer container
+  # (SimplySign + jsign + .NET baked in). Certum SimplySign is GUI middleware
+  # with no headless API, so the certum-sign action drives it under Xvfb and
+  # signs with jsign over PKCS#11 — Linux only. packages:read lets this job's
+  # token pull the GHCR image.
+  # ============================
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/reactiveui/certum-signer:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    # Map the Certum secrets into env so the composite action (which cannot
+    # declare secret-typed inputs) can read them.
+    env:
+      CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
+      CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+      CERTUM_CERT_FINGERPRINT: ${{ secrets.CERTUM_CERT_FINGERPRINT }}
+    steps:
+      - name: Download unsigned packages
+        uses: actions/download-artifact@v4
+        with:
+          name: unsigned-nuget
+          path: signed
+
+      - name: Sign packages with Certum SimplySign (prebuilt image)
+        uses: reactiveui/actions-common/.github/actions/certum-sign@main
+        with:
+          packages-glob: 'signed/*.nupkg'
+          prebuilt: 'true'
 
       - name: Upload signed packages
         uses: actions/upload-artifact@v4
         with:
           name: signed-nuget
-          path: ./signed/*.nupkg
+          path: signed/*.nupkg
           if-no-files-found: error
+
+  # ============================
+  # PUBLISH: push the signed packages to NuGet (OIDC trusted publishing) and
+  # cut the GitHub release. gh + the OIDC login run on the host, not the
+  # signer container.
+  # ============================
+  publish:
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download signed packages
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-nuget
+          path: signed
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .
 
       - name: NuGet login (OIDC trusted publishing)
         uses: NuGet/login@v1
@@ -138,4 +217,4 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.ver.outputs.tag }}" --repo "${{ github.repository }}" --title "${{ steps.ver.outputs.version }}" --notes-file "${{ github.workspace }}/release-notes.md"
+        run: gh release create "${{ needs.build.outputs.tag }}" --repo "${{ github.repository }}" --title "${{ needs.build.outputs.version }}" --notes-file release-notes.md
