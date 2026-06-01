@@ -1,0 +1,51 @@
+# Dependabot version updates.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Groupings keep PR volume manageable: bumps that share a release cadence land
+# together. Group order matters — Dependabot assigns each package to the first
+# group whose patterns match, so the narrower groups (analyzers, polly,
+# test-stack) are listed before the catch-all microsoft group.
+
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      analyzers:
+        patterns:
+          - "*.Analyzers"
+          - "stylecop.analyzers"
+          - "Roslynator.*"
+          - "SonarAnalyzer.*"
+          - "Blazor.Common.*"
+      polly:
+        patterns:
+          - "Polly*"
+      test-stack:
+        patterns:
+          - "TUnit*"
+          - "Microsoft.Testing.*"
+      microsoft:
+        # Catch-all for the Microsoft / System extensions we ride on
+        # (Microsoft.Extensions.*, Microsoft.SourceLink.*, System.CommandLine, etc).
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      core-actions:
+        patterns:
+          - "actions/*"
+          - "dotnet/*"
+          - "github/*"
+      release-actions:
+        # Release-only vendor actions should land together so publishing
+        # workflow changes stay in one PR.
+        patterns:
+          - "NuGet/*"
