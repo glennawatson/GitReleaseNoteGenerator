@@ -134,6 +134,43 @@ public class ReleaseNoteGeneratorApiTests
     }
 
     /// <summary>
+    /// Tests that an explicit base ref skips release lookup and drives the compare path directly.
+    /// </summary>
+    [Test]
+    public async Task GenerateAsync_WithExplicitBaseRef_SkipsReleaseLookup()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path == $"/repos/{Owner}/{Repo}")
+            {
+                return (HttpStatusCode.OK, RepoJson);
+            }
+
+            if (path.Contains("/compare/", StringComparison.Ordinal))
+            {
+                return (HttpStatusCode.OK, CompareJson());
+            }
+
+            if (path.EndsWith("/commits", StringComparison.Ordinal))
+            {
+                return IsBeyondFirstPage(req.RequestUri!.Query)
+                    ? (HttpStatusCode.OK, "[]")
+                    : (HttpStatusCode.OK, $"[{CommitJson}]");
+            }
+
+            return (HttpStatusCode.OK, "[]");
+        });
+
+        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+
+        var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", "v1.5.0", null);
+
+        await Assert.That(notes).Contains("feat: a shiny new feature");
+        await Assert.That(notes).Contains("compare/v1.5.0...v2.0.0");
+    }
+
+    /// <summary>
     /// Builds a comparison payload containing the single feature commit.
     /// </summary>
     /// <returns>The compare-result JSON.</returns>

@@ -63,7 +63,7 @@ public static partial class RetryHandler
     /// <param name="exception">The exception that triggered the retry, if any.</param>
     /// <param name="timeProvider">The time provider used to get the current time.</param>
     /// <returns>The rate limit reset delay, or null to use the default retry delay.</returns>
-    private static TimeSpan? CalculateRateLimitDelay(Exception? exception, TimeProvider timeProvider)
+    internal static TimeSpan? CalculateRateLimitDelay(Exception? exception, TimeProvider timeProvider)
     {
         if (exception is not RateLimitExceededException rateLimitEx)
         {

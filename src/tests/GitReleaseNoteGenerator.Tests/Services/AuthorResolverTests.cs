@@ -90,6 +90,21 @@ public class AuthorResolverTests
     }
 
     /// <summary>
+    /// Tests that a contributor with no email falls back to the name without querying the API.
+    /// </summary>
+    [Test]
+    public async Task ResolveAsync_WithNoEmail_FallsBackToNameWithoutQuery()
+    {
+        var search = new FakeUserLoginSearch();
+        var resolver = new AuthorResolver(search, NullLogger.Instance);
+
+        var result = await resolver.ResolveAsync(new(null, GlennName, null));
+
+        await Assert.That(result).IsEqualTo("GlennWatson");
+        await Assert.That(search.CallCount).IsEqualTo(0);
+    }
+
+    /// <summary>
     /// Tests that an unresolvable email falls back to the normalized display name.
     /// </summary>
     [Test]

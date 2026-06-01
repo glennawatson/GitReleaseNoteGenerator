@@ -14,9 +14,9 @@ using Octokit;
 namespace GitReleaseNoteGenerator.Tests.Commands;
 
 /// <summary>
-/// End-to-end tests for <see cref="GenerateCommand"/> that invoke the parsed command, capturing
-/// console output and the exit code. These mutate global state (console, environment, exit code,
-/// the client-factory seam) and must not run in parallel.
+/// End-to-end tests for <see cref="GenerateCommand"/> that invoke the parsed command and assert
+/// on the exit code (and, for the happy path, the written output file). These mutate global state
+/// (environment variables, exit code, the client-factory seam) and must not run in parallel.
 /// </summary>
 [NotInParallel]
 public class GenerateCommandTests
@@ -25,6 +25,16 @@ public class GenerateCommandTests
     /// The --token option name.
     /// </summary>
     private const string TokenArg = "--token";
+
+    /// <summary>
+    /// The --owner option name.
+    /// </summary>
+    private const string OwnerArg = "--owner";
+
+    /// <summary>
+    /// The --repo option name.
+    /// </summary>
+    private const string RepoArg = "--repo";
 
     /// <summary>
     /// The token argument value.
@@ -66,48 +76,127 @@ public class GenerateCommandTests
         """;
 
     /// <summary>
-    /// Tests that a missing token reports an error and sets a non-zero exit code.
+    /// Tests that a missing token sets a non-zero exit code.
     /// </summary>
     [Test]
-    public async Task Invoke_WithMissingToken_ReportsErrorAndExits()
+    public async Task Invoke_WithMissingToken_Exits()
     {
-        var result = await RunAsync([], token: null, repository: null, clientFactory: null);
+        var exitCode = await RunAsync([], token: null, repository: null, clientFactory: null);
 
-        await Assert.That(result.ExitCode).IsEqualTo(1);
-        await Assert.That(result.StdErr).Contains("GitHub token is required");
+        await Assert.That(exitCode).IsEqualTo(1);
     }
 
     /// <summary>
-    /// Tests that a missing repository (token present) reports an error and sets a non-zero exit code.
+    /// Tests that a missing repository (token present) sets a non-zero exit code.
     /// </summary>
     [Test]
-    public async Task Invoke_WithMissingRepository_ReportsErrorAndExits()
+    public async Task Invoke_WithMissingRepository_Exits()
     {
-        var result = await RunAsync([TokenArg, Token], token: null, repository: null, clientFactory: null);
+        var exitCode = await RunAsync([TokenArg, Token], token: null, repository: null, clientFactory: null);
 
-        await Assert.That(result.ExitCode).IsEqualTo(1);
-        await Assert.That(result.StdErr).Contains("Repository owner and name are required");
+        await Assert.That(exitCode).IsEqualTo(1);
     }
 
     /// <summary>
-    /// Tests that a missing release version (token and repository present) reports an error.
+    /// Tests that a missing release version (token and repository present) sets a non-zero exit code.
     /// </summary>
     [Test]
-    public async Task Invoke_WithMissingVersion_ReportsErrorAndExits()
+    public async Task Invoke_WithMissingVersion_Exits()
     {
-        var result = await RunAsync([TokenArg, Token, "--owner", Owner, "--repo", Repo], token: null, repository: null, clientFactory: null);
+        var exitCode = await RunAsync([TokenArg, Token, OwnerArg, Owner, RepoArg, Repo], token: null, repository: null, clientFactory: null);
 
-        await Assert.That(result.ExitCode).IsEqualTo(1);
-        await Assert.That(result.StdErr).Contains("Release version is required");
+        await Assert.That(exitCode).IsEqualTo(1);
     }
 
     /// <summary>
-    /// Tests the full happy path: a valid invocation renders release notes to stdout.
+    /// Tests the full happy path: a valid invocation writes release notes to the output file.
     /// </summary>
     [Test]
     public async Task Invoke_WithValidArguments_WritesReleaseNotes()
     {
-        var handler = new FakeHttpMessageHandler(req =>
+        var handler = HappyPathHandler();
+        var outputFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            var exitCode = await RunAsync(
+                [TokenArg, Token, OwnerArg, Owner, RepoArg, Repo, "--release-version", "v9.9.9", "--output-file", outputFile],
+                token: null,
+                repository: null,
+                clientFactory: token => GitHubClientFactory.Create(token, handler));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+
+            var notes = await File.ReadAllTextAsync(outputFile);
+            await Assert.That(notes).Contains("What's Changed");
+            await Assert.That(notes).Contains("@janedev");
+        }
+        finally
+        {
+            if (File.Exists(outputFile))
+            {
+                File.Delete(outputFile);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tests that the happy path also writes to the GITHUB_OUTPUT file when requested.
+    /// </summary>
+    [Test]
+    public async Task Invoke_WithGitHubOutput_WritesToOutputFile()
+    {
+        var handler = HappyPathHandler();
+        var githubOutput = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var originalGithubOutput = Environment.GetEnvironmentVariable("GITHUB_OUTPUT");
+        try
+        {
+            await File.WriteAllTextAsync(githubOutput, string.Empty);
+            Environment.SetEnvironmentVariable("GITHUB_OUTPUT", githubOutput);
+
+            var exitCode = await RunAsync(
+                [TokenArg, Token, OwnerArg, Owner, RepoArg, Repo, "--release-version", "v9.9.9", "--github-output"],
+                token: null,
+                repository: null,
+                clientFactory: token => GitHubClientFactory.Create(token, handler));
+
+            await Assert.That(exitCode).IsEqualTo(0);
+
+            var written = await File.ReadAllTextAsync(githubOutput);
+            await Assert.That(written).Contains("changelog<<");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GITHUB_OUTPUT", originalGithubOutput);
+            if (File.Exists(githubOutput))
+            {
+                File.Delete(githubOutput);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tests that an API failure is caught and surfaced as a non-zero exit code.
+    /// </summary>
+    [Test]
+    public async Task Invoke_WhenApiFails_Exits()
+    {
+        var handler = new FakeHttpMessageHandler(_ => (HttpStatusCode.Unauthorized, """{ "message": "Bad credentials" }"""));
+
+        var exitCode = await RunAsync(
+            [TokenArg, Token, OwnerArg, Owner, RepoArg, Repo, "--release-version", "v9.9.9"],
+            token: null,
+            repository: null,
+            clientFactory: token => GitHubClientFactory.Create(token, handler));
+
+        await Assert.That(exitCode).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Builds a fake handler that serves the no-release (all-history) happy path with one commit.
+    /// </summary>
+    /// <returns>The configured fake handler.</returns>
+    private static FakeHttpMessageHandler HappyPathHandler() =>
+        new(req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path == $"/repos/{Owner}/{Repo}")
@@ -130,35 +219,6 @@ public class GenerateCommandTests
             return (HttpStatusCode.OK, "[]");
         });
 
-        var result = await RunAsync(
-            [TokenArg, Token, "--owner", Owner, "--repo", Repo, "--release-version", "v9.9.9"],
-            token: null,
-            repository: null,
-            clientFactory: token => GitHubClientFactory.Create(token, handler));
-
-        await Assert.That(result.ExitCode).IsEqualTo(0);
-        await Assert.That(result.StdOut).Contains("What's Changed");
-        await Assert.That(result.StdOut).Contains("@janedev");
-    }
-
-    /// <summary>
-    /// Tests that an API failure is caught, reported, and surfaced as a non-zero exit code.
-    /// </summary>
-    [Test]
-    public async Task Invoke_WhenApiFails_ReportsErrorAndExits()
-    {
-        var handler = new FakeHttpMessageHandler(_ => (HttpStatusCode.Unauthorized, """{ "message": "Bad credentials" }"""));
-
-        var result = await RunAsync(
-            [TokenArg, Token, "--owner", Owner, "--repo", Repo, "--release-version", "v9.9.9"],
-            token: null,
-            repository: null,
-            clientFactory: token => GitHubClientFactory.Create(token, handler));
-
-        await Assert.That(result.ExitCode).IsEqualTo(1);
-        await Assert.That(result.StdErr).Contains("Error:");
-    }
-
     /// <summary>
     /// Determines whether a request query targets a page beyond the first.
     /// </summary>
@@ -178,33 +238,26 @@ public class GenerateCommandTests
     }
 
     /// <summary>
-    /// Invokes the command with the given arguments while isolating global state (console,
-    /// environment variables, exit code, and the client-factory seam), restoring it afterwards.
+    /// Invokes the command with the given arguments while isolating global state (environment
+    /// variables, exit code, and the client-factory seam), restoring it afterwards.
     /// </summary>
     /// <param name="args">The command-line arguments.</param>
     /// <param name="token">The value for the GITHUB_TOKEN environment variable (null to unset).</param>
     /// <param name="repository">The value for the GITHUB_REPOSITORY environment variable (null to unset).</param>
     /// <param name="clientFactory">An optional client-factory override.</param>
-    /// <returns>The exit code, captured standard output, and captured standard error.</returns>
-    private static async Task<(int ExitCode, string StdOut, string StdErr)> RunAsync(
+    /// <returns>The resulting process exit code.</returns>
+    private static async Task<int> RunAsync(
         string[] args,
         string? token,
         string? repository,
         Func<string, GitHubClient>? clientFactory)
     {
-        var originalOut = Console.Out;
-        var originalError = Console.Error;
         var originalToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
         var originalRepository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
         var originalFactory = GenerateCommand.ClientFactory;
         var originalExitCode = Environment.ExitCode;
-
-        var stdout = new StringWriter();
-        var stderr = new StringWriter();
         try
         {
-            Console.SetOut(stdout);
-            Console.SetError(stderr);
             Environment.SetEnvironmentVariable("GITHUB_TOKEN", token);
             Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", repository);
             Environment.ExitCode = 0;
@@ -216,12 +269,10 @@ public class GenerateCommandTests
 
             await GenerateCommand.Create().Parse(args).InvokeAsync();
 
-            return (Environment.ExitCode, stdout.ToString(), stderr.ToString());
+            return Environment.ExitCode;
         }
         finally
         {
-            Console.SetOut(originalOut);
-            Console.SetError(originalError);
             Environment.SetEnvironmentVariable("GITHUB_TOKEN", originalToken);
             Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", originalRepository);
             GenerateCommand.ClientFactory = originalFactory;

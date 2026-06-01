@@ -169,6 +169,32 @@ public class ReleaseNoteFormatterTests
     }
 
     /// <summary>
+    /// Tests that a category outside the known map is rendered as its own custom section.
+    /// </summary>
+    [Test]
+    public async Task FormatReleaseNotes_WithUnknownCategory_RendersCustomSection()
+    {
+        var commit = CreateCommit("custom: thing", "def456");
+        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Custom Category", [commit] }
+        };
+        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var result = ReleaseNoteGenerator.FormatReleaseNotes(
+            Owner,
+            Repo,
+            ChangelogUrl,
+            allAuthors,
+            newAuthors,
+            grouped);
+
+        await Assert.That(result).Contains("Custom Category");
+        await Assert.That(result).Contains("owner/repo@def456");
+    }
+
+    /// <summary>
     /// Creates a test <see cref="GitHubCommit"/> with the specified message and SHA.
     /// </summary>
     /// <param name="message">The commit message.</param>
