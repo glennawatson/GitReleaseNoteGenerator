@@ -35,14 +35,14 @@ jobs:
       tag: ${{ steps.ver.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
           filter: tree:0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -112,14 +112,14 @@ jobs:
         run: dotnet pack src/GitReleaseNoteGenerator.slnx --no-build --configuration Release -o packages
 
       - name: Upload unsigned packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unsigned-nuget
           path: packages/*.nupkg
           if-no-files-found: error
 
       - name: Upload release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release-notes.md
@@ -128,9 +128,9 @@ jobs:
   # ============================
   # SIGN with Certum SimplySign — runs inside the prebuilt signer container
   # (SimplySign + jsign + .NET baked in). Certum SimplySign is GUI middleware
-  # with no headless API, so the certum-sign action drives it under Xvfb and
-  # signs with jsign over PKCS#11 — Linux only. packages:read lets this job's
-  # token pull the GHCR image.
+  # with no headless API, so these steps drive it under Xvfb (xdotool) and sign
+  # with jsign over PKCS#11 — Linux only. The image is public, so it pulls
+  # anonymously (no registry credentials needed).
   # ============================
   sign:
     needs: build
@@ -139,33 +139,131 @@ jobs:
       name: release
     permissions:
       contents: read
-      packages: read
     container:
       image: ghcr.io/reactiveui/certum-signer:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    # Map the Certum secrets into env so the composite action (which cannot
-    # declare secret-typed inputs) can read them.
     env:
       CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
       CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
       CERTUM_CERT_FINGERPRINT: ${{ secrets.CERTUM_CERT_FINGERPRINT }}
     steps:
       - name: Download unsigned packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: unsigned-nuget
           path: signed
 
-      - name: Sign packages with Certum SimplySign (prebuilt image)
-        uses: reactiveui/actions-common/.github/actions/certum-sign@main
-        with:
-          packages-glob: 'signed/*.nupkg'
-          prebuilt: 'true'
+      - name: Resolve prebuilt SimplySign paths
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # The prebuilt image bakes SimplySign at $SS_DIST and jsign at $JSIGN_JAR.
+          : "${SS_DIST:?prebuilt image must set SS_DIST}"
+          {
+            echo "SS_DIST=$SS_DIST"
+            echo "SS_START=$(find "$SS_DIST/" -name 'SimplySignDesktop_start' -type f | head -1)"
+            echo "SS_EXE=$(find "$SS_DIST/" -name 'SimplySignDesktop' -type f | head -1)"
+            echo "SS_PKCS11=$(find "$SS_DIST/" -name 'SimplySignPKCS*.so' | head -1)"
+          } >> "$GITHUB_ENV"
+
+      - name: Start headless display
+        shell: bash
+        run: |
+          set -euxo pipefail
+          Xvfb :99 -screen 0 1280x1024x24 >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          sleep 3
+          # Stop fluxbox running fbsetbg (a missing wallpaper pops an xmessage that
+          # steals focus from the login form).
+          mkdir -p "$HOME/.fluxbox"
+          printf 'session.screen0.rootCommand: /bin/true\n' > "$HOME/.fluxbox/init"
+          DISPLAY=:99 fluxbox >"$RUNNER_TEMP/fluxbox.log" 2>&1 &
+          sleep 2
+          DISPLAY=:99 xdpyinfo >/dev/null && echo "X display :99 up"
+
+      - name: Connect SimplySign (headless login)
+        shell: bash
+        env:
+          DISPLAY: ':99'
+        run: |
+          set -uxo pipefail
+          : "${CERTUM_USER_ID:?map the CERTUM_USER_ID secret into the job env}"
+          : "${CERTUM_OTP_URI:?map the CERTUM_OTP_URI secret into the job env}"
+          # SimplySignDesktop reads $USER at startup and segfaults when unset.
+          export USER="${USER:-root}"
+          cp "$SS_DIST/SimplySignDesktop.xml" "$HOME/" 2>/dev/null || true
+          mkdir -p "$HOME/.config"
+          { echo "[General]"; echo "CacheUserIdAtLogon=Yes"; echo "ShowLogonDialogAfterApplicationStartup=Yes"; echo "ShowLogonDialogWhenAnyAppRequestsAccess=Yes"; } > "$HOME/.config/Unknown Organization.conf"
+          export LD_LIBRARY_PATH="$SS_DIST:${LD_LIBRARY_PATH:-}"
+          if [ -n "${SS_START:-}" ]; then "$SS_START" >"$RUNNER_TEMP/simplysign.log" 2>&1 &
+          else "$SS_EXE" >"$RUNNER_TEMP/simplysign.log" 2>&1 & fi
+          sleep 20
+          # Current TOTP from the otpauth:// URI (honours algorithm/digits/period).
+          OTP="$(python3 -c 'import os,hmac,hashlib,base64,struct,time;from urllib.parse import urlparse,parse_qs;q=parse_qs(urlparse(os.environ["CERTUM_OTP_URI"]).query);s=q["secret"][0];digits=int(q.get("digits",["6"])[0]);period=int(q.get("period",["30"])[0]);algo={"SHA1":hashlib.sha1,"SHA256":hashlib.sha256,"SHA512":hashlib.sha512}[q.get("algorithm",["SHA1"])[0].upper()];key=base64.b32decode(s+"="*((8-len(s)%8)%8));h=hmac.new(key,struct.pack(">Q",int(time.time()//period)),algo).digest();o=h[-1]&0xF;print(str((int.from_bytes(h[o:o+4],"big")&0x7fffffff)%(10**digits)).zfill(digits))')"
+          echo "::add-mask::$OTP"
+          # Find the login window, retry-waiting because the dialog can lag launch.
+          WID=""; BX=0; BY=0; BW=0; BH=0
+          for attempt in $(seq 1 30); do
+            best=0; WID=""
+            for w in $(xdotool search --name '' 2>/dev/null); do
+              nm="$(xdotool getwindowname "$w" 2>/dev/null || true)"
+              case "$nm" in *implySign*) ;; *) continue ;; esac
+              eval "$(xdotool getwindowgeometry --shell "$w" 2>/dev/null)"
+              area=$(( ${WIDTH:-0} * ${HEIGHT:-0} ))
+              if [ "$area" -gt "$best" ]; then best=$area; WID=$w; BX=${X:-0}; BY=${Y:-0}; BW=${WIDTH:-0}; BH=${HEIGHT:-0}; fi
+            done
+            [ "${BW:-0}" -ge 400 ] && [ "${BH:-0}" -ge 300 ] && { echo "login window $WID ${BW}x${BH} (attempt $attempt)"; break; }
+            WID=""; sleep 2
+          done
+          [ -z "$WID" ] && { echo "::error::SimplySign login window did not appear"; cat "$RUNNER_TEMP/simplysign.log" || true; exit 1; }
+          xdotool windowactivate --sync "$WID" || xdotool windowactivate "$WID" || true
+          xdotool windowraise "$WID" || true
+          sleep 1
+          # Click E-MAIL field, type id; Tab; type OTP; click Login.
+          xdotool mousemove $((BX + BW/2)) $((BY + BH*39/100)) click 1; sleep 1
+          xdotool type --clearmodifiers --delay 50 "$CERTUM_USER_ID"
+          xdotool key Tab; sleep 1
+          xdotool type --clearmodifiers --delay 50 "$OTP"
+          xdotool mousemove $((BX + BW/2)) $((BY + BH*76/100)) click 1
+          sleep 8
+          # "Logon successful" dialog: token activates only after its Close button.
+          best=0
+          for w in $(xdotool search --name '' 2>/dev/null); do
+            nm="$(xdotool getwindowname "$w" 2>/dev/null || true)"
+            case "$nm" in *implySign*) ;; *) continue ;; esac
+            eval "$(xdotool getwindowgeometry --shell "$w" 2>/dev/null)"
+            area=$(( ${WIDTH:-0} * ${HEIGHT:-0} ))
+            if [ "$area" -gt "$best" ]; then best=$area; WID=$w; BX=${X:-0}; BY=${Y:-0}; BW=${WIDTH:-0}; BH=${HEIGHT:-0}; fi
+          done
+          xdotool windowactivate --sync "$WID" || true
+          xdotool mousemove $((BX + BW/2)) $((BY + BH*94/100)) click 1
+          sleep 3
+          # Confirm the token is active (fails fast if login did not take).
+          timeout 60 pkcs11-tool --module "$SS_PKCS11" -L
+
+      - name: Sign packages with jsign + verify
+        shell: bash
+        run: |
+          set -euxo pipefail
+          JAR="${JSIGN_JAR:-$RUNNER_TEMP/jsign.jar}"
+          if [ ! -s "$JAR" ]; then
+            curl -fsSL -o "$JAR" "https://repo1.maven.org/maven2/net/jsign/jsign/7.4/jsign-7.4.jar"
+          fi
+          CONF="$RUNNER_TEMP/sunpkcs11.conf"
+          { echo "name = SimplySign"; echo "library = $SS_PKCS11"; echo "slotListIndex = 0"; } > "$CONF"
+          shopt -s nullglob
+          pkgs=( signed/*.nupkg )
+          [ "${#pkgs[@]}" -gt 0 ] || { echo "::error::no packages matched: signed/*.nupkg"; exit 1; }
+          for pkg in "${pkgs[@]}"; do
+            echo "::group::sign $pkg"
+            # RFC3161 timestamp so the signature outlives the cert; the token has
+            # one key so jsign auto-selects it.
+            java -jar "$JAR" --storetype PKCS11 --keystore "$CONF" --storepass "" \
+              --alg SHA-256 --tsmode RFC3161 --tsaurl "http://time.certum.pl" --replace "$pkg"
+            dotnet nuget verify "$pkg" --all --verbosity detailed
+            echo "::endgroup::"
+          done
 
       - name: Upload signed packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signed-nuget
           path: signed/*.nupkg
@@ -186,24 +284,24 @@ jobs:
       id-token: write
     steps:
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
       - name: Download signed packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: signed-nuget
           path: signed
 
       - name: Download release notes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-notes
           path: .
 
       - name: NuGet login (OIDC trusted publishing)
-        uses: NuGet/login@v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
         id: nuget-login
         with:
           user: ${{ secrets.NUGET_USER }}
