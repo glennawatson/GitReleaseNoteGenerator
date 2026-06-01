@@ -63,13 +63,17 @@ jobs:
             major|minor|patch) ;;
             *) echo "Pick a bump level (major / minor / patch)." >&2; exit 1 ;;
           esac
-          LAST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
-                  | grep -Ev -- '-' \
+          # Accept either a 'v'-prefixed (vX.Y.Z) or bare (X.Y.Z) RTM tag — older
+          # releases predate the MinVer 'v' prefix. Strip the optional 'v', drop
+          # pre-release tags, and take the highest. The new tag is always created
+          # with the 'v' prefix below so MinVer picks it up going forward.
+          LAST="$(git tag --list \
+                  | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' \
+                  | sed 's/^v//' \
                   | sort -V \
-                  | tail -1 \
-                  | sed 's/^v//')"
+                  | tail -1)"
           if [ -z "$LAST" ]; then
-            echo "No RTM tag (vX.Y.Z) found in history." >&2
+            echo "No RTM tag (vX.Y.Z or X.Y.Z) found in history." >&2
             exit 1
           fi
           IFS=. read -r MAJ MIN PAT <<<"$LAST"
