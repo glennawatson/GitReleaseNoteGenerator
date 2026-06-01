@@ -12,119 +12,25 @@ using Microsoft.Extensions.Logging;
 namespace GitReleaseNoteGenerator.Commands;
 
 /// <summary>
-/// Defines the root command for generating release notes.
+/// Wires the generate root command to its action. Decision logic lives in
+/// <see cref="CommandOptionsFactory"/> and <see cref="CommandArgumentResolver"/>; this type
+/// owns only the console/process side effects of execution.
 /// </summary>
 internal static partial class GenerateCommand
 {
     /// <summary>
-    /// Creates the root command with all options.
+    /// Creates the root command with all options and its execution action.
     /// </summary>
     /// <returns>The configured root command.</returns>
     public static RootCommand Create()
     {
-        var commandConfiguration = CreateRootCommandAndOptions();
+        var options = CommandOptionsFactory.CreateOptions();
+        var rootCommand = CommandOptionsFactory.CreateRootCommand(options);
 
-        SetRootCommandAction(commandConfiguration.RootCommand, commandConfiguration.Options);
-
-        return commandConfiguration.RootCommand;
-    }
-
-    /// <summary>
-    /// Creates the root command and all options.
-    /// </summary>
-    /// <returns>The root command configuration.</returns>
-    private static GenerateRootCommandConfiguration CreateRootCommandAndOptions()
-    {
-        var options = CreateOptions();
-
-        var rootCommand = new RootCommand("Generate categorized release notes from git commit history")
-        {
-            options.TokenOption,
-            options.OwnerOption,
-            options.RepoOption,
-            options.BaseRefOption,
-            options.HeadRefOption,
-            options.VersionOption,
-            options.OutputFileOption,
-            options.GitHubOutputOption,
-            options.OutputNameOption
-        };
-
-        return new(options, rootCommand);
-    }
-
-    /// <summary>
-    /// Creates the options for the root command.
-    /// </summary>
-    /// <returns>The options.</returns>
-    private static GenerateCommandOptions CreateOptions()
-    {
-        var tokenOption = new Option<string?>("--token")
-        {
-            Description = "GitHub personal access token (defaults to GITHUB_TOKEN env var)"
-        };
-
-        var ownerOption = new Option<string?>("--owner")
-        {
-            Description = "Repository owner (defaults to GITHUB_REPOSITORY env var)"
-        };
-
-        var repoOption = new Option<string?>("--repo")
-        {
-            Description = "Repository name (defaults to GITHUB_REPOSITORY env var)"
-        };
-
-        var baseRefOption = new Option<string?>("--base-ref")
-        {
-            Description = "Base ref to compare from (defaults to latest release tag)"
-        };
-
-        var headRefOption = new Option<string?>("--head-ref")
-        {
-            Description = "Head ref to compare to (defaults to default branch)"
-        };
-
-        var versionOption = new Option<string?>("--release-version")
-        {
-            Description = "Version string for release notes (defaults to NBGV auto-detection)"
-        };
-
-        var outputFileOption = new Option<FileInfo?>("--output-file")
-        {
-            Description = "Write release notes to a file"
-        };
-
-        var githubOutputOption = new Option<bool>("--github-output")
-        {
-            Description = "Write release notes to GITHUB_OUTPUT",
-            DefaultValueFactory = _ => false
-        };
-
-        var outputNameOption = new Option<string>("--output-name")
-        {
-            Description = "Variable name when writing to GITHUB_OUTPUT",
-            DefaultValueFactory = _ => "changelog"
-        };
-
-        return new(
-            tokenOption,
-            ownerOption,
-            repoOption,
-            baseRefOption,
-            headRefOption,
-            versionOption,
-            outputFileOption,
-            githubOutputOption,
-            outputNameOption);
-    }
-
-    /// <summary>
-    /// Configures the root command action.
-    /// </summary>
-    /// <param name="rootCommand">The root command to configure.</param>
-    /// <param name="options">The options used to parse command arguments.</param>
-    private static void SetRootCommandAction(RootCommand rootCommand, GenerateCommandOptions options) =>
         rootCommand.SetAction(async (parseResult, _) => await ExecuteAsync(parseResult, options).ConfigureAwait(false));
+
+        return rootCommand;
+    }
 
     /// <summary>
     /// Executes release note generation for parsed command-line input.
@@ -141,7 +47,7 @@ internal static partial class GenerateCommand
         {
             Console.WriteLine("Starting release note generation...");
 
-            var values = GetCommandValues(parseResult, options);
+            var values = CommandArgumentResolver.ReadValues(parseResult, options);
             WriteCommandSummary(values);
 
             var arguments = await ValidateAndResolveArgumentsAsync(values, logger).ConfigureAwait(false);
@@ -172,24 +78,6 @@ internal static partial class GenerateCommand
             builder.AddConsole().SetMinimumLevel(LogLevel.Information));
 
     /// <summary>
-    /// Gets raw command values from the parse result and GitHub Actions environment.
-    /// </summary>
-    /// <param name="parseResult">The parse result from the command-line invocation.</param>
-    /// <param name="options">The configured command options.</param>
-    /// <returns>The raw command values.</returns>
-    private static GenerateCommandValues GetCommandValues(ParseResult parseResult, GenerateCommandOptions options) =>
-        new(
-            parseResult.GetValue(options.TokenOption) ?? GitHubActionEnvironment.Token,
-            parseResult.GetValue(options.OwnerOption) ?? GitHubActionEnvironment.RepositoryOwner,
-            parseResult.GetValue(options.RepoOption) ?? GitHubActionEnvironment.RepositoryName,
-            parseResult.GetValue(options.BaseRefOption),
-            parseResult.GetValue(options.HeadRefOption),
-            parseResult.GetValue(options.VersionOption),
-            parseResult.GetValue(options.OutputFileOption),
-            parseResult.GetValue(options.GitHubOutputOption),
-            parseResult.GetValue(options.OutputNameOption) ?? "changelog");
-
-    /// <summary>
     /// Writes a summary of the command values to the console.
     /// </summary>
     /// <param name="values">The command values to summarize.</param>
@@ -210,8 +98,10 @@ internal static partial class GenerateCommand
     /// <returns>The resolved command arguments, or <see langword="null"/> when validation fails.</returns>
     private static async Task<GenerateCommandArguments?> ValidateAndResolveArgumentsAsync(GenerateCommandValues values, ILogger logger)
     {
-        if (!await ValidateRequiredValuesAsync(values, logger).ConfigureAwait(false))
+        var status = CommandArgumentResolver.Validate(values);
+        if (status != CommandValidationStatus.Valid)
         {
+            await ReportValidationFailureAsync(status, logger).ConfigureAwait(false);
             return null;
         }
 
@@ -222,43 +112,29 @@ internal static partial class GenerateCommand
             return null;
         }
 
-        return new(
-            values.Token!,
-            values.Owner!,
-            values.Repo!,
-            values.BaseRef,
-            values.HeadRef,
-            version,
-            values.OutputFile,
-            values.GitHubOutput,
-            values.OutputName);
+        return CommandArgumentResolver.CreateArguments(values, version);
     }
 
     /// <summary>
-    /// Validates command values that must be provided by arguments or environment variables.
+    /// Reports a validation failure to the log and standard error and sets the process exit code.
     /// </summary>
-    /// <param name="values">The command values to validate.</param>
+    /// <param name="status">The validation failure status.</param>
     /// <param name="logger">The logger instance.</param>
-    /// <returns><see langword="true"/> when required values are present; otherwise, <see langword="false"/>.</returns>
-    private static async Task<bool> ValidateRequiredValuesAsync(GenerateCommandValues values, ILogger logger)
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private static async Task ReportValidationFailureAsync(CommandValidationStatus status, ILogger logger)
     {
-        if (string.IsNullOrEmpty(values.Token))
+        if (status == CommandValidationStatus.TokenMissing)
         {
             LogTokenRequired(logger);
             await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
-            Environment.ExitCode = 1;
-            return false;
         }
-
-        if (!string.IsNullOrEmpty(values.Owner) && !string.IsNullOrEmpty(values.Repo))
+        else
         {
-            return true;
+            LogRepoRequired(logger);
+            await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
         }
 
-        LogRepoRequired(logger);
-        await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
         Environment.ExitCode = 1;
-        return false;
     }
 
     /// <summary>
@@ -378,80 +254,4 @@ internal static partial class GenerateCommand
     /// <param name="exception">The exception that occurred.</param>
     [LoggerMessage(Level = LogLevel.Error, Message = "Release note generation failed")]
     private static partial void LogUnhandledError(ILogger logger, Exception exception);
-
-    /// <summary>
-    /// Contains the root command and the options used by its action.
-    /// </summary>
-    /// <param name="Options">The configured command options.</param>
-    /// <param name="RootCommand">The configured root command.</param>
-    private sealed record GenerateRootCommandConfiguration(GenerateCommandOptions Options, RootCommand RootCommand);
-
-    /// <summary>
-    /// Contains the options accepted by the generate command.
-    /// </summary>
-    /// <param name="TokenOption">The option for the GitHub token.</param>
-    /// <param name="OwnerOption">The option for the repository owner.</param>
-    /// <param name="RepoOption">The option for the repository name.</param>
-    /// <param name="BaseRefOption">The option for the base comparison ref.</param>
-    /// <param name="HeadRefOption">The option for the head comparison ref.</param>
-    /// <param name="VersionOption">The option for the release version.</param>
-    /// <param name="OutputFileOption">The option for the output file.</param>
-    /// <param name="GitHubOutputOption">The option for writing to GitHub Actions output.</param>
-    /// <param name="OutputNameOption">The option for the GitHub Actions output name.</param>
-    private sealed record GenerateCommandOptions(
-        Option<string?> TokenOption,
-        Option<string?> OwnerOption,
-        Option<string?> RepoOption,
-        Option<string?> BaseRefOption,
-        Option<string?> HeadRefOption,
-        Option<string?> VersionOption,
-        Option<FileInfo?> OutputFileOption,
-        Option<bool> GitHubOutputOption,
-        Option<string> OutputNameOption);
-
-    /// <summary>
-    /// Contains raw command values before validation and inferred value resolution.
-    /// </summary>
-    /// <param name="Token">The GitHub token.</param>
-    /// <param name="Owner">The repository owner.</param>
-    /// <param name="Repo">The repository name.</param>
-    /// <param name="BaseRef">The base comparison ref.</param>
-    /// <param name="HeadRef">The head comparison ref.</param>
-    /// <param name="Version">The release version.</param>
-    /// <param name="OutputFile">The file to write release notes to.</param>
-    /// <param name="GitHubOutput">A value indicating whether to write to GitHub Actions output.</param>
-    /// <param name="OutputName">The GitHub Actions output name.</param>
-    private sealed record GenerateCommandValues(
-        string? Token,
-        string? Owner,
-        string? Repo,
-        string? BaseRef,
-        string? HeadRef,
-        string? Version,
-        FileInfo? OutputFile,
-        bool GitHubOutput,
-        string OutputName);
-
-    /// <summary>
-    /// Contains validated and resolved command arguments.
-    /// </summary>
-    /// <param name="Token">The GitHub token.</param>
-    /// <param name="Owner">The repository owner.</param>
-    /// <param name="Repo">The repository name.</param>
-    /// <param name="BaseRef">The base comparison ref.</param>
-    /// <param name="HeadRef">The head comparison ref.</param>
-    /// <param name="Version">The release version.</param>
-    /// <param name="OutputFile">The file to write release notes to.</param>
-    /// <param name="GitHubOutput">A value indicating whether to write to GitHub Actions output.</param>
-    /// <param name="OutputName">The GitHub Actions output name.</param>
-    private sealed record GenerateCommandArguments(
-        string Token,
-        string Owner,
-        string Repo,
-        string? BaseRef,
-        string? HeadRef,
-        string Version,
-        FileInfo? OutputFile,
-        bool GitHubOutput,
-        string OutputName);
 }

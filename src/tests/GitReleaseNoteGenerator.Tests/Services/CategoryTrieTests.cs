@@ -183,6 +183,19 @@ public class CategoryTrieTests
     }
 
     /// <summary>
+    /// Tests that the non-generic enumerator iterates the registered groups.
+    /// </summary>
+    [Test]
+    public async Task NonGenericEnumerator_IteratesGroups()
+    {
+        var trie = CreateDefaultTrie();
+
+        var enumerator = ((System.Collections.IEnumerable)trie).GetEnumerator();
+
+        await Assert.That(enumerator.MoveNext()).IsTrue();
+    }
+
+    /// <summary>
     /// Creates a trie with Features, Fixes, and Documentation categories for testing.
     /// </summary>
     /// <returns>A configured <see cref="CategoryTrie"/> instance.</returns>

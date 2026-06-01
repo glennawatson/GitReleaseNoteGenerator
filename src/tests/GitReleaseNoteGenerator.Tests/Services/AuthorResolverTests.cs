@@ -33,6 +33,17 @@ public class AuthorResolverTests
     private const string GlennEmail = "glenn@glennwatson.net";
 
     /// <summary>
+    /// Tests that the GitHub-client constructor wires up the default API-backed login search.
+    /// </summary>
+    [Test]
+    public async Task Constructor_WithGitHubClient_CreatesResolver()
+    {
+        var resolver = new AuthorResolver(GitHubClientFactory.Create("ghp_example"), NullLogger.Instance);
+
+        await Assert.That(resolver).IsNotNull();
+    }
+
+    /// <summary>
     /// Tests that an already-resolved login is returned without querying the search API.
     /// </summary>
     [Test]

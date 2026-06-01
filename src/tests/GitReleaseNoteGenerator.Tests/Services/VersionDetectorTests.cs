@@ -4,6 +4,8 @@
 
 using GitReleaseNoteGenerator.Services;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace GitReleaseNoteGenerator.Tests.Services;
 
 /// <summary>
@@ -80,5 +82,27 @@ public class VersionDetectorTests
         var version = VersionDetector.ParseNuGetPackageVersion(Output);
 
         await Assert.That(version).IsEqualTo("2.0.0");
+    }
+
+    /// <summary>
+    /// Tests that a missing version with a logger present still returns null (and logs).
+    /// </summary>
+    [Test]
+    public async Task ParseNuGetPackageVersion_WithMissingVersionAndLogger_ReturnsNull()
+    {
+        var version = VersionDetector.ParseNuGetPackageVersion("SemVer2:  1.0.0", NullLogger.Instance);
+
+        await Assert.That(version).IsNull();
+    }
+
+    /// <summary>
+    /// Tests that a key line without a colon is ignored.
+    /// </summary>
+    [Test]
+    public async Task ParseNuGetPackageVersion_WithKeyButNoColon_ReturnsNull()
+    {
+        var version = VersionDetector.ParseNuGetPackageVersion("NuGetPackageVersion 1.0.0");
+
+        await Assert.That(version).IsNull();
     }
 }

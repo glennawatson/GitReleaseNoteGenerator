@@ -173,6 +173,20 @@ public class AuthorExtractorTests
     }
 
     /// <summary>
+    /// Tests that a co-author trailer without an &lt;email&gt; falls back to the display name.
+    /// </summary>
+    [Test]
+    public async Task GetCommitAuthors_WithCoAuthorWithoutEmail_UsesName()
+    {
+        const string Message = "feat: add feature\n\nCo-authored-by: Jane Doe";
+        var commit = CreateCommit(Message, authorLogin: Octocat);
+
+        var authors = AuthorExtractor.GetCommitAuthors(commit);
+
+        await Assert.That(authors).Contains("JaneDoe");
+    }
+
+    /// <summary>
     /// Tests bot detection.
     /// </summary>
     [Test]
