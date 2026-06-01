@@ -23,4 +23,9 @@ internal enum CommandValidationStatus
     /// The repository owner and/or name are missing.
     /// </summary>
     RepositoryMissing,
+
+    /// <summary>
+    /// The release version is missing.
+    /// </summary>
+    VersionMissing,
 }

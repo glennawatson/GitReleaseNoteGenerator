@@ -104,7 +104,6 @@ See https://tunit.dev/docs/reference/command-line-flags for complete TUnit flag 
 - `src/global.json` - Specifies `"Microsoft.Testing.Platform"` as the test runner
 - `src/testconfig.json` - Configures test execution and code coverage (Cobertura format)
 - `src/Directory.Build.props` - Enables `TestingPlatformDotnetTestSupport` for test projects
-- `version.json` - Nerdbank.GitVersioning configuration
 
 ## Architecture Overview
 
@@ -121,7 +120,6 @@ src/
       CategoryTrie.cs               # Prefix trie for commit message categorization
       CommitCategorizer.cs          # Commit -> category mapping + grouping
       AuthorExtractor.cs            # Author/co-author extraction & normalization
-      VersionDetector.cs            # Cross-platform NBGV integration
       GitHubClientFactory.cs        # Authenticated GitHubClient factory
     Infrastructure/
       OutputWriter.cs               # stdout, file, GITHUB_OUTPUT writing
@@ -140,7 +138,7 @@ src/
 - **Octokit 14.0.0** - GitHub API client (classic, not Kiota-based)
 - **System.CommandLine 2.0.3** - CLI parsing (stable release, NOT beta)
 - **Polly.Core** - Retry/resilience for API calls
-- **Nerdbank.GitVersioning** - Version detection
+- **MinVer** - Build versioning from git tags
 - **TUnit** - Test framework (includes MS Test SDK and code coverage)
 
 ### Key Patterns
@@ -189,7 +187,7 @@ This project enforces **zero warnings**. All analyzer warnings must be resolved,
 
 ## Important Notes
 
-- **No shallow clones:** Repository requires full clone for Nerdbank.GitVersioning
+- **No shallow clones:** Repository requires full clone (with tags) for MinVer
 - **Required .NET SDKs:** .NET 8.0 and 10.0 (both LTS targets)
 - **SLNX Format:** Uses modern XML-based solution format
 - **PackAsTool:** Main project is distributed as a dotnet global tool (`git-release-notes`)

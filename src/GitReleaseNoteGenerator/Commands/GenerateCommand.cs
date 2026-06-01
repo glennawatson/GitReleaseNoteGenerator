@@ -9,6 +9,8 @@ using GitReleaseNoteGenerator.Services;
 
 using Microsoft.Extensions.Logging;
 
+using Octokit;
+
 namespace GitReleaseNoteGenerator.Commands;
 
 /// <summary>
@@ -18,6 +20,13 @@ namespace GitReleaseNoteGenerator.Commands;
 /// </summary>
 internal static partial class GenerateCommand
 {
+    /// <summary>
+    /// Gets or sets the factory used to construct the authenticated GitHub client from a token.
+    /// Defaults to the real <see cref="GitHubClientFactory"/>; overridable as a seam so the
+    /// end-to-end command flow can be driven against a fake transport in tests.
+    /// </summary>
+    internal static Func<string, GitHubClient> ClientFactory { get; set; } = GitHubClientFactory.Create;
+
     /// <summary>
     /// Creates the root command with all options and its execution action.
     /// </summary>
@@ -105,14 +114,7 @@ internal static partial class GenerateCommand
             return null;
         }
 
-        var version = await ResolveVersionAsync(values.Version, logger).ConfigureAwait(false);
-
-        if (string.IsNullOrEmpty(version))
-        {
-            return null;
-        }
-
-        return CommandArgumentResolver.CreateArguments(values, version);
+        return CommandArgumentResolver.CreateArguments(values);
     }
 
     /// <summary>
@@ -123,46 +125,31 @@ internal static partial class GenerateCommand
     /// <returns>A task that represents the asynchronous operation.</returns>
     private static async Task ReportValidationFailureAsync(CommandValidationStatus status, ILogger logger)
     {
-        if (status == CommandValidationStatus.TokenMissing)
+        switch (status)
         {
-            LogTokenRequired(logger);
-            await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
-        }
-        else
-        {
-            LogRepoRequired(logger);
-            await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
+            case CommandValidationStatus.TokenMissing:
+            {
+                LogTokenRequired(logger);
+                await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
+                break;
+            }
+
+            case CommandValidationStatus.VersionMissing:
+            {
+                LogVersionRequired(logger);
+                await Console.Error.WriteLineAsync("Error: Release version is required. Pass --release-version (for example, compute it with nbgv in your pipeline).").ConfigureAwait(false);
+                break;
+            }
+
+            default:
+            {
+                LogRepoRequired(logger);
+                await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
+                break;
+            }
         }
 
         Environment.ExitCode = 1;
-    }
-
-    /// <summary>
-    /// Resolves the release version from the command value or auto-detection.
-    /// </summary>
-    /// <param name="version">The version supplied by the command, if any.</param>
-    /// <param name="logger">The logger instance.</param>
-    /// <returns>The resolved version, or <see langword="null"/> when no version can be resolved.</returns>
-    private static async Task<string?> ResolveVersionAsync(string? version, ILogger logger)
-    {
-        if (!string.IsNullOrEmpty(version))
-        {
-            return version;
-        }
-
-        LogDetectingVersion(logger);
-        version = await VersionDetector.DetectVersionAsync(Directory.GetCurrentDirectory(), logger).ConfigureAwait(false);
-
-        if (string.IsNullOrEmpty(version))
-        {
-            LogVersionDetectionFailed(logger);
-            await Console.Error.WriteLineAsync("Error: Could not auto-detect version. Specify --release-version explicitly or install NBGV.").ConfigureAwait(false);
-            Environment.ExitCode = 1;
-            return null;
-        }
-
-        LogDetectedVersion(logger, version);
-        return version;
     }
 
     /// <summary>
@@ -175,7 +162,7 @@ internal static partial class GenerateCommand
     {
         Console.WriteLine($"Generating release notes for {arguments.Owner}/{arguments.Repo} version {arguments.Version}...");
 
-        var client = GitHubClientFactory.Create(arguments.Token);
+        var client = ClientFactory(arguments.Token);
         var generator = new ReleaseNoteGenerator(client, logger);
 
         var releaseNotes = await generator.GenerateAsync(arguments.Owner, arguments.Repo, arguments.Version, arguments.BaseRef, arguments.HeadRef).ConfigureAwait(false);
@@ -226,26 +213,11 @@ internal static partial class GenerateCommand
     private static partial void LogRepoRequired(ILogger logger);
 
     /// <summary>
-    /// Logs that version auto-detection is being attempted via NBGV.
+    /// Logs that the release version was not provided.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Information, Message = "No --version specified, detecting via NBGV...")]
-    private static partial void LogDetectingVersion(ILogger logger);
-
-    /// <summary>
-    /// Logs that version auto-detection failed.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Could not auto-detect version. Specify --release-version explicitly or install NBGV")]
-    private static partial void LogVersionDetectionFailed(ILogger logger);
-
-    /// <summary>
-    /// Logs the version that was auto-detected.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="version">The detected version string.</param>
-    [LoggerMessage(Level = LogLevel.Information, Message = "Detected version: {Version}")]
-    private static partial void LogDetectedVersion(ILogger logger, string version);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Release version is required. Pass --release-version")]
+    private static partial void LogVersionRequired(ILogger logger);
 
     /// <summary>
     /// Logs an unhandled error during release note generation.

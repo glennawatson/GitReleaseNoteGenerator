@@ -57,16 +57,21 @@ internal static class CommandArgumentResolver
             return CommandValidationStatus.RepositoryMissing;
         }
 
+        if (string.IsNullOrEmpty(values.Version))
+        {
+            return CommandValidationStatus.VersionMissing;
+        }
+
         return CommandValidationStatus.Valid;
     }
 
     /// <summary>
-    /// Maps validated command values plus a resolved version into command arguments.
+    /// Maps validated command values into command arguments. The token, owner, repo, and version
+    /// must already have been confirmed present by <see cref="Validate"/>.
     /// </summary>
-    /// <param name="values">The validated command values (token, owner, and repo must be present).</param>
-    /// <param name="version">The resolved release version.</param>
+    /// <param name="values">The validated command values.</param>
     /// <returns>The resolved command arguments.</returns>
-    public static GenerateCommandArguments CreateArguments(GenerateCommandValues values, string version)
+    public static GenerateCommandArguments CreateArguments(GenerateCommandValues values)
     {
         ArgumentNullException.ThrowIfNull(values);
 
@@ -76,7 +81,7 @@ internal static class CommandArgumentResolver
             values.Repo!,
             values.BaseRef,
             values.HeadRef,
-            version,
+            values.Version!,
             values.OutputFile,
             values.GitHubOutput,
             values.OutputName);

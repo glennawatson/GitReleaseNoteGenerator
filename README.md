@@ -11,15 +11,17 @@ dotnet tool install -g GitReleaseNoteGenerator
 ## Quick Start
 
 ```bash
-# Generate release notes for the latest release
+# Generate release notes for a version
 git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --release-version v2.0.0
 
-# Auto-detect version via NBGV, write to file
-git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --output-file release-notes.md
+# Write the notes to a file
+git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --release-version v2.0.0 --output-file release-notes.md
 
-# Use with GITHUB_OUTPUT in CI
-git-release-notes --github-output --output-name changelog
+# Write the notes to GITHUB_OUTPUT in CI
+git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --release-version v2.0.0 --github-output --output-name changelog
 ```
+
+> **Version:** `--release-version` is required. Compute it in your pipeline — for example with [Nerdbank.GitVersioning (`nbgv`)](https://github.com/dotnet/Nerdbank.GitVersioning) or [MinVer](https://github.com/adamralph/minver) — and pass the result in.
 
 ## CLI Reference
 
@@ -30,7 +32,7 @@ git-release-notes --github-output --output-name changelog
 | `--repo` | string | From `GITHUB_REPOSITORY` env | Repository name |
 | `--base-ref` | string | Latest release tag | Base ref to compare from |
 | `--head-ref` | string | Default branch | Head ref to compare to |
-| `--release-version` | string | Auto-detect via NBGV | Version string for the heading |
+| `--release-version` | string | **required** | Version string for the heading |
 | `--output-file` | path | _(none)_ | Write release notes to a file |
 | `--github-output` | flag | `false` | Write to `GITHUB_OUTPUT` |
 | `--output-name` | string | `changelog` | Variable name for `GITHUB_OUTPUT` |

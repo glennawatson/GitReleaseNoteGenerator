@@ -49,7 +49,7 @@ internal static class CommandOptionsFactory
 
         var versionOption = new Option<string?>("--release-version")
         {
-            Description = "Version string for release notes (defaults to NBGV auto-detection)",
+            Description = "Version string for the release notes heading (required)",
         };
 
         var outputFileOption = new Option<FileInfo?>("--output-file")

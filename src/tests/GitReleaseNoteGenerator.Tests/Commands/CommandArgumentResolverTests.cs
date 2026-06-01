@@ -81,6 +81,17 @@ public class CommandArgumentResolverTests
     }
 
     /// <summary>
+    /// Tests that a missing version is reported when the token and repository are present.
+    /// </summary>
+    [Test]
+    public async Task Validate_WithMissingVersion_ReturnsVersionMissing()
+    {
+        var status = CommandArgumentResolver.Validate(CreateValues(version: null));
+
+        await Assert.That(status).IsEqualTo(CommandValidationStatus.VersionMissing);
+    }
+
+    /// <summary>
     /// Tests that complete values validate successfully.
     /// </summary>
     [Test]
@@ -92,14 +103,14 @@ public class CommandArgumentResolverTests
     }
 
     /// <summary>
-    /// Tests that values and the resolved version are mapped into arguments.
+    /// Tests that values are mapped into arguments.
     /// </summary>
     [Test]
-    public async Task CreateArguments_MapsValuesAndVersion()
+    public async Task CreateArguments_MapsValues()
     {
-        var values = new GenerateCommandValues("t", "o", "r", "base", "head", null, null, true, "out");
+        var values = new GenerateCommandValues("t", "o", "r", "base", "head", "1.2.3", null, true, "out");
 
-        var arguments = CommandArgumentResolver.CreateArguments(values, "1.2.3");
+        var arguments = CommandArgumentResolver.CreateArguments(values);
 
         await Assert.That(arguments.Token).IsEqualTo("t");
         await Assert.That(arguments.Owner).IsEqualTo("o");
@@ -117,7 +128,8 @@ public class CommandArgumentResolverTests
     /// <param name="token">The token value.</param>
     /// <param name="owner">The owner value.</param>
     /// <param name="repo">The repository value.</param>
+    /// <param name="version">The release version value.</param>
     /// <returns>The command values.</returns>
-    private static GenerateCommandValues CreateValues(string? token = "t", string? owner = "o", string? repo = "r") =>
-        new(token, owner, repo, null, null, null, null, false, CommandOptionsFactory.DefaultOutputName);
+    private static GenerateCommandValues CreateValues(string? token = "t", string? owner = "o", string? repo = "r", string? version = "v1.0.0") =>
+        new(token, owner, repo, null, null, version, null, false, CommandOptionsFactory.DefaultOutputName);
 }
