@@ -4,13 +4,15 @@
 
 using System.Collections;
 
+using GitReleaseNoteGenerator.Models;
+
 namespace GitReleaseNoteGenerator.Services;
 
 /// <summary>
 /// A trie (prefix tree) that maps commit message prefixes to categories.
 /// Supports efficient longest-prefix-match lookup for categorizing commits.
 /// </summary>
-public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, string[] Prefixes)>
+internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
 {
     /// <summary>
     /// The root node of the trie structure.
@@ -20,7 +22,7 @@ public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, s
     /// <summary>
     /// All registered category groups with their priorities and prefix arrays.
     /// </summary>
-    private readonly List<(int Priority, string Category, string[] Prefixes)> _groups = [];
+    private readonly List<CategoryGroup> _groups = [];
 
     /// <summary>
     /// The fallback category name returned when no prefix matches a message.
@@ -32,14 +34,14 @@ public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, s
     /// </summary>
     /// <param name="otherCategoryName">The fallback category name for unmatched messages.</param>
     /// <param name="categories">The categories with their priorities and prefix mappings.</param>
-    public CategoryTrie(string otherCategoryName, IEnumerable<(int Priority, string Category, string[] Prefixes)> categories)
+    public CategoryTrie(string otherCategoryName, IEnumerable<CategoryGroup> categories)
     {
         ArgumentNullException.ThrowIfNull(categories);
 
         _otherValue = otherCategoryName;
-        foreach (var (priority, category, prefixes) in categories)
+        foreach (var group in categories)
         {
-            Add(priority, category, prefixes);
+            Add(group);
         }
     }
 
@@ -86,8 +88,14 @@ public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, s
         return OtherCategory;
     }
 
+    /// <summary>
+    /// Gets an enumerator for the registered category groups.
+    /// </summary>
+    /// <returns>An enumerator over the registered category groups.</returns>
+    public List<CategoryGroup>.Enumerator GetEnumerator() => _groups.GetEnumerator();
+
     /// <inheritdoc/>
-    public IEnumerator<(int Priority, string Category, string[] Prefixes)> GetEnumerator() => _groups.GetEnumerator();
+    IEnumerator<CategoryGroup> IEnumerable<CategoryGroup>.GetEnumerator() => GetEnumerator();
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -95,15 +103,13 @@ public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, s
     /// <summary>
     /// Registers a category group and inserts all its prefixes into the trie.
     /// </summary>
-    /// <param name="priority">The sort priority for the category.</param>
-    /// <param name="category">The category name.</param>
-    /// <param name="prefixes">The commit message prefixes that map to this category.</param>
-    private void Add(int priority, string category, string[] prefixes)
+    /// <param name="group">The category group to register.</param>
+    private void Add(CategoryGroup group)
     {
-        _groups.Add((priority, category, prefixes));
-        foreach (var prefix in prefixes)
+        _groups.Add(group);
+        foreach (var prefix in group.Prefixes)
         {
-            AddToTrie(priority, prefix, category);
+            AddToTrie(group.Priority, prefix, group.Category);
         }
     }
 
@@ -121,7 +127,7 @@ public sealed class CategoryTrie : IEnumerable<(int Priority, string Category, s
             var ch = char.ToLowerInvariant(character);
             if (!node.Children.TryGetValue(ch, out var childNode))
             {
-                childNode = new TrieNode();
+                childNode = new();
                 node.Children[ch] = childNode;
             }
 

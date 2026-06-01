@@ -17,14 +17,14 @@ public class VersionDetectorTests
     [Test]
     public async Task ParseNuGetPackageVersion_WithValidOutput_ReturnsVersion()
     {
-        var output = """
+        const string Output = """
             AssemblyVersion:      1.0.0.0
             AssemblyFileVersion:  1.0.42.12345
             NuGetPackageVersion:  1.0.42-g1234567890
             SemVer2:              1.0.42-g1234567890
             """;
 
-        var version = VersionDetector.ParseNuGetPackageVersion(output);
+        var version = VersionDetector.ParseNuGetPackageVersion(Output);
 
         await Assert.That(version).IsEqualTo("1.0.42-g1234567890");
     }
@@ -35,12 +35,12 @@ public class VersionDetectorTests
     [Test]
     public async Task ParseNuGetPackageVersion_WithMissingVersion_ReturnsNull()
     {
-        var output = """
+        const string Output = """
             AssemblyVersion:      1.0.0.0
             SemVer2:              1.0.42
             """;
 
-        var version = VersionDetector.ParseNuGetPackageVersion(output);
+        var version = VersionDetector.ParseNuGetPackageVersion(Output);
 
         await Assert.That(version).IsNull();
     }
@@ -62,9 +62,9 @@ public class VersionDetectorTests
     [Test]
     public async Task ParseNuGetPackageVersion_WithColonInValue_ParsesCorrectly()
     {
-        var output = "NuGetPackageVersion:  1.0.0-beta:special";
+        const string Output = "NuGetPackageVersion:  1.0.0-beta:special";
 
-        var version = VersionDetector.ParseNuGetPackageVersion(output);
+        var version = VersionDetector.ParseNuGetPackageVersion(Output);
 
         await Assert.That(version).IsEqualTo("1.0.0-beta:special");
     }
@@ -75,9 +75,9 @@ public class VersionDetectorTests
     [Test]
     public async Task ParseNuGetPackageVersion_IsCaseInsensitive()
     {
-        var output = "nugetpackageversion:  2.0.0";
+        const string Output = "nugetpackageversion:  2.0.0";
 
-        var version = VersionDetector.ParseNuGetPackageVersion(output);
+        var version = VersionDetector.ParseNuGetPackageVersion(Output);
 
         await Assert.That(version).IsEqualTo("2.0.0");
     }

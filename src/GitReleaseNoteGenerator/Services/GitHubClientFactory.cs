@@ -19,6 +19,6 @@ public static class GitHubClientFactory
     public static GitHubClient Create(string token) =>
         new(new ProductHeaderValue("GitReleaseNoteGenerator"))
         {
-            Credentials = new Credentials(token),
+            Credentials = new(token)
         };
 }

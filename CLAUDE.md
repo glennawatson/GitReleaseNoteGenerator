@@ -128,9 +128,8 @@ src/
       RetryHandler.cs               # Polly retry for GitHub API
       GitHubActionEnvironment.cs    # GitHub Actions env var reader
     Models/
-      ReleaseNoteOptions.cs         # CLI options model
-      CategorizedCommit.cs          # Commit with category
-      CategoryDefinition.cs         # Category definition record
+      CommitContributor.cs          # Unresolved contributor (login/name/email)
+      CategoryGroup.cs              # Category priority + name + prefixes (trie input)
     Program.cs                      # Entry point
   tests/GitReleaseNoteGenerator.Tests/
     Services/                       # Unit tests for pure logic classes

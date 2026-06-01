@@ -45,6 +45,16 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!-- MinVer (versioning) — replaces Nerdbank.GitVersioning. Versions derive from
+       git tags prefixed with 'v'; untagged builds produce 1.0.x-alpha.0.<height>
+       until a v1.0.0 (or later) tag is cut. -->
+  <PropertyGroup>
+    <MinVerAutoIncrement>minor</MinVerAutoIncrement>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerMinimumMajorMinor>1.0</MinVerMinimumMajorMinor>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(IsTestProject)' == 'true'">
     <None Include="$(MSBuildThisFileDirectory)testconfig.json">
       <Link>testconfig.json</Link>
@@ -67,9 +77,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
     <PackageReference Include="stylecop.analyzers" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
+    <PackageReference Include="Blazor.Common.Analyzers" PrivateAssets="All" />
+    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

@@ -43,6 +43,11 @@ public sealed partial class ReleaseNoteGenerator
     private readonly ResiliencePipeline _retry;
 
     /// <summary>
+    /// Resolves commit contributors to canonical GitHub logins to avoid duplicate attribution.
+    /// </summary>
+    private readonly AuthorResolver _authorResolver;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ReleaseNoteGenerator"/> class.
     /// </summary>
     /// <param name="client">An authenticated GitHub client.</param>
@@ -52,6 +57,7 @@ public sealed partial class ReleaseNoteGenerator
         _client = client;
         _logger = logger;
         _retry = RetryHandler.CreatePipeline(logger);
+        _authorResolver = new(client, logger);
     }
 
     /// <summary>
@@ -67,13 +73,14 @@ public sealed partial class ReleaseNoteGenerator
         string owner,
         string repoName,
         string version,
-        string? baseRef = null,
-        string? headRef = null)
+        string? baseRef,
+        string? headRef)
     {
         LogGenerating(owner, repoName, version);
 
         var repo = await _retry.ExecuteAsync(
-            async ct => await _client.Repository.Get(owner, repoName).ConfigureAwait(false),
+            static async (state, _) => await state.Client.Repository.Get(state.Owner, state.RepoName).ConfigureAwait(false),
+            (Client: _client, Owner: owner, RepoName: repoName),
             CancellationToken.None).ConfigureAwait(false);
 
         var resolvedBaseRef = await ResolveBaseRefAsync(owner, repoName, baseRef).ConfigureAwait(false);
@@ -86,9 +93,12 @@ public sealed partial class ReleaseNoteGenerator
         LogCommitCount(commits.Count);
 
         var authorsAfterRelease = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolvedAuthorsByCommit = new Dictionary<string, IReadOnlyCollection<string>>(StringComparer.Ordinal);
         foreach (var commit in commits)
         {
-            authorsAfterRelease.UnionWith(AuthorExtractor.GetCommitAuthors(commit));
+            var resolved = await _authorResolver.GetResolvedAuthorsAsync(commit).ConfigureAwait(false);
+            authorsAfterRelease.UnionWith(resolved);
+            resolvedAuthorsByCommit[commit.Sha ?? string.Empty] = resolved;
         }
 
         var authorsBeforeRelease = await GetAllAuthorsReachableFromRefAsync(owner, repoName, resolvedBaseRef).ConfigureAwait(false);
@@ -109,7 +119,8 @@ public sealed partial class ReleaseNoteGenerator
             fullChangelogUrl,
             authorsAfterRelease,
             newAuthors,
-            groupedCommits);
+            groupedCommits,
+            resolvedAuthorsByCommit);
     }
 
     /// <summary>
@@ -128,45 +139,88 @@ public sealed partial class ReleaseNoteGenerator
         string fullChangelogUrl,
         IEnumerable<string> allAuthors,
         IEnumerable<string> newAuthors,
-        Dictionary<string, List<GitHubCommit>> groupedCommits)
+        Dictionary<string, List<GitHubCommit>> groupedCommits) =>
+        FormatReleaseNotes(
+            ownerLogin,
+            repoName,
+            fullChangelogUrl,
+            allAuthors,
+            newAuthors,
+            groupedCommits,
+            null);
+
+    /// <summary>
+    /// Formats the release notes markdown from the provided inputs.
+    /// </summary>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="fullChangelogUrl">The URL to the GitHub compare view.</param>
+    /// <param name="allAuthors">All contributors since the base ref.</param>
+    /// <param name="newAuthors">Contributors since the base ref who did not appear earlier.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="resolvedAuthorsByCommit">
+    /// Pre-resolved canonical authors keyed by commit SHA. When a commit is absent (or this map
+    /// is null), the authors are resolved locally without an API call.
+    /// </param>
+    /// <returns>Markdown-formatted release notes.</returns>
+    internal static string FormatReleaseNotes(
+        string ownerLogin,
+        string repoName,
+        string fullChangelogUrl,
+        IEnumerable<string> allAuthors,
+        IEnumerable<string> newAuthors,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
     {
         var sb = new StringBuilder()
             .AppendLine("## \U0001f5de\ufe0f What's Changed")
             .AppendLine();
 
-        foreach (var (_, categoryName, _) in CommitCategorizer.CategoryMap)
-        {
-            if (groupedCommits.TryGetValue(categoryName, out var commits) && commits.Count > 0)
-            {
-                FormatSection(sb, categoryName, commits, ownerLogin, repoName);
-                sb.AppendLine();
-            }
-        }
+        AppendChangedSections(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
+        AppendFullChangelog(sb, fullChangelogUrl);
+        AppendContributions(sb, allAuthors, newAuthors);
 
-        var otherCategory = CommitCategorizer.CategoryMap.OtherCategory.Category;
-        if (groupedCommits.TryGetValue(otherCategory, out var otherCommits) && otherCommits.Count > 0)
-        {
-            FormatSection(sb, otherCategory, otherCommits, ownerLogin, repoName);
-            sb.AppendLine();
-        }
+        return sb.ToString().TrimEnd();
+    }
 
-        foreach (var kvp in groupedCommits)
-        {
-            var key = kvp.Key;
-            var isKnown = CommitCategorizer.CategoryMap
-                .Any(t => string.Equals(t.Category, key, StringComparison.OrdinalIgnoreCase));
+    /// <summary>
+    /// Appends the grouped commit sections to the release notes.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendChangedSections(
+        StringBuilder sb,
+        string ownerLogin,
+        string repoName,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+    {
+        AppendKnownSections(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
+        AppendOtherSection(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
+        AppendCustomSections(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
+    }
 
-            if (!isKnown && !string.Equals(key, otherCategory, StringComparison.OrdinalIgnoreCase))
-            {
-                FormatSection(sb, key, kvp.Value, ownerLogin, repoName);
-                sb.AppendLine();
-            }
-        }
-
+    /// <summary>
+    /// Appends the full changelog URL to the release notes.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="fullChangelogUrl">The URL to the GitHub compare view.</param>
+    private static void AppendFullChangelog(StringBuilder sb, string fullChangelogUrl) =>
         sb.Append("\U0001f517 **Full Changelog**: ")
             .AppendLine(fullChangelogUrl)
             .AppendLine();
 
+    /// <summary>
+    /// Appends contributor attribution to the release notes.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="allAuthors">All contributors since the base ref.</param>
+    /// <param name="newAuthors">Contributors since the base ref who did not appear earlier.</param>
+    private static void AppendContributions(StringBuilder sb, IEnumerable<string> allAuthors, IEnumerable<string> newAuthors)
+    {
         var allAuthorsList = allAuthors.ToList();
         var newAuthorsList = newAuthors.ToList();
         var botContributors = allAuthorsList.Where(AuthorExtractor.IsBot).ToList();
@@ -196,8 +250,139 @@ public sealed partial class ReleaseNoteGenerator
                 .AppendJoin(", ", botContributors.Select(a => $"@{a}"))
                 .AppendLine();
         }
+    }
 
-        return sb.ToString().TrimEnd();
+    /// <summary>
+    /// Appends release note sections for known categories in their configured order.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendKnownSections(
+        StringBuilder sb,
+        string ownerLogin,
+        string repoName,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+    {
+        foreach (var (_, categoryName, _) in CommitCategorizer.CategoryMap)
+        {
+            AppendSectionWhenPresent(sb, ownerLogin, repoName, groupedCommits, categoryName, resolvedAuthorsByCommit);
+        }
+    }
+
+    /// <summary>
+    /// Appends the fallback "Other Changes" release note section when present.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendOtherSection(
+        StringBuilder sb,
+        string ownerLogin,
+        string repoName,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit) =>
+        AppendSectionWhenPresent(
+            sb,
+            ownerLogin,
+            repoName,
+            groupedCommits,
+            CommitCategorizer.CategoryMap.OtherCategory.Category,
+            resolvedAuthorsByCommit);
+
+    /// <summary>
+    /// Appends release note sections that are not part of the configured category map.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendCustomSections(
+        StringBuilder sb,
+        string ownerLogin,
+        string repoName,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+    {
+        var customSections = groupedCommits.Where(kvp => IsCustomCategory(kvp.Key));
+
+        foreach (var (category, commits) in customSections)
+        {
+            AppendSection(sb, category, commits, ownerLogin, repoName, resolvedAuthorsByCommit);
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a category is outside the configured category map and fallback category.
+    /// </summary>
+    /// <param name="category">The category to inspect.</param>
+    /// <returns>True when the category is custom; otherwise, false.</returns>
+    private static bool IsCustomCategory(string category) =>
+        !IsKnownCategory(category)
+        && !string.Equals(
+            category,
+            CommitCategorizer.CategoryMap.OtherCategory.Category,
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Determines whether a category is part of the configured category map.
+    /// </summary>
+    /// <param name="category">The category to inspect.</param>
+    /// <returns>True when the category is configured; otherwise, false.</returns>
+    private static bool IsKnownCategory(string category) =>
+        CommitCategorizer.CategoryMap
+            .Any(t => string.Equals(t.Category, category, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Appends a release note section when it has commits.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="groupedCommits">Commits grouped by category.</param>
+    /// <param name="category">The category to append.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendSectionWhenPresent(
+        StringBuilder sb,
+        string ownerLogin,
+        string repoName,
+        Dictionary<string, List<GitHubCommit>> groupedCommits,
+        string category,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+    {
+        if (!groupedCommits.TryGetValue(category, out var commits) || commits.Count == 0)
+        {
+            return;
+        }
+
+        AppendSection(sb, category, commits, ownerLogin, repoName, resolvedAuthorsByCommit);
+    }
+
+    /// <summary>
+    /// Appends a release note section and trailing blank line.
+    /// </summary>
+    /// <param name="sb">The string builder to append to.</param>
+    /// <param name="category">The category name for the section heading.</param>
+    /// <param name="commits">The commits belonging to this category.</param>
+    /// <param name="ownerLogin">Repository owner login for commit links.</param>
+    /// <param name="repoName">Repository name for commit links.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    private static void AppendSection(
+        StringBuilder sb,
+        string category,
+        IEnumerable<GitHubCommit> commits,
+        string ownerLogin,
+        string repoName,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+    {
+        FormatSection(sb, category, commits, ownerLogin, repoName, resolvedAuthorsByCommit);
+        sb.AppendLine();
     }
 
     /// <summary>
@@ -208,12 +393,14 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="commits">The commits belonging to this category.</param>
     /// <param name="ownerLogin">The repository owner login for commit links.</param>
     /// <param name="repoName">The repository name for commit links.</param>
+    /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA, or null.</param>
     private static void FormatSection(
         StringBuilder sb,
         string category,
         IEnumerable<GitHubCommit> commits,
         string ownerLogin,
-        string repoName)
+        string repoName,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
     {
         var emoji = CommitCategorizer.GetEmoji(category);
         sb.Append("### ")
@@ -226,8 +413,12 @@ public sealed partial class ReleaseNoteGenerator
             var message = commit.Commit.Message ?? string.Empty;
             var firstLine = message.Split(["\r\n", "\n"], StringSplitOptions.None)[0];
 
-            var authors = AuthorExtractor.GetCommitAuthors(commit);
             var sha = commit.Sha ?? "unknown";
+            var authors = resolvedAuthorsByCommit is not null
+                && commit.Sha is not null
+                && resolvedAuthorsByCommit.TryGetValue(commit.Sha, out var resolved)
+                ? resolved
+                : AuthorExtractor.GetCommitAuthors(commit);
 
             sb.Append(" * ")
                 .Append(ownerLogin)
@@ -304,7 +495,8 @@ public sealed partial class ReleaseNoteGenerator
         try
         {
             var latestRelease = await _retry.ExecuteAsync(
-                async ct => await _client.Repository.Release.GetLatest(owner, repoName).ConfigureAwait(false),
+                static async (state, _) => await state.Client.Repository.Release.GetLatest(state.Owner, state.RepoName).ConfigureAwait(false),
+                (Client: _client, Owner: owner, RepoName: repoName),
                 CancellationToken.None).ConfigureAwait(false);
 
             LogLatestRelease(latestRelease?.TagName);
@@ -331,22 +523,24 @@ public sealed partial class ReleaseNoteGenerator
         string? baseRef,
         string headRef)
     {
-        if (!string.IsNullOrEmpty(baseRef))
+        if (string.IsNullOrEmpty(baseRef))
         {
-            var comparison = await _retry.ExecuteAsync(
-                async ct => await _client.Repository.Commit
-                    .Compare(owner, repoName, baseRef, headRef)
+            return await _retry.ExecuteAsync(
+                static async (state, _) => await state.Client.Repository.Commit
+                    .GetAll(state.Owner, state.RepoName, new CommitRequest { Sha = state.HeadRef })
                     .ConfigureAwait(false),
+                (Client: _client, Owner: owner, RepoName: repoName, HeadRef: headRef),
                 CancellationToken.None).ConfigureAwait(false);
-
-            return comparison.Commits;
         }
 
-        return await _retry.ExecuteAsync(
-            async ct => await _client.Repository.Commit
-                .GetAll(owner, repoName, new CommitRequest { Sha = headRef })
+        var comparison = await _retry.ExecuteAsync(
+            static async (state, _) => await state.Client.Repository.Commit
+                .Compare(state.Owner, state.RepoName, state.BaseRef, state.HeadRef)
                 .ConfigureAwait(false),
+            (Client: _client, Owner: owner, RepoName: repoName, BaseRef: baseRef, HeadRef: headRef),
             CancellationToken.None).ConfigureAwait(false);
+
+        return comparison.Commits;
     }
 
     /// <summary>
@@ -363,24 +557,24 @@ public sealed partial class ReleaseNoteGenerator
     {
         var authors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var page = 1;
-        const int pageSize = 100;
-
-        var request = new CommitRequest { Sha = refShaOrName };
+        const int PageSize = 100;
 
         while (page <= MaxPaginationPages)
         {
+            var localPage = page;
             var commits = await _retry.ExecuteAsync(
-                async ct => await _client.Repository.Commit.GetAll(
-                        owner,
-                        repoName,
-                        request,
-                        new ApiOptions
+                static async (state, _) => await state.Client.Repository.Commit.GetAll(
+                        state.Owner,
+                        state.RepoName,
+                        new() { Sha = state.RefShaOrName },
+                        new()
                         {
                             PageCount = 1,
-                            PageSize = pageSize,
-                            StartPage = page,
+                            PageSize = PageSize,
+                            StartPage = state.Page
                         })
                     .ConfigureAwait(false),
+                (Client: _client, Owner: owner, RepoName: repoName, RefShaOrName: refShaOrName, Page: localPage),
                 CancellationToken.None).ConfigureAwait(false);
 
             if (commits.Count == 0)
@@ -388,9 +582,9 @@ public sealed partial class ReleaseNoteGenerator
                 break;
             }
 
-            foreach (var c in commits)
+            foreach (var commit in commits)
             {
-                authors.UnionWith(AuthorExtractor.GetCommitAuthors(c));
+                authors.UnionWith(await _authorResolver.GetResolvedAuthorsAsync(commit).ConfigureAwait(false));
             }
 
             page++;

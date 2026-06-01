@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using Octokit;
 
 using Polly;
-using Polly.Retry;
 
 namespace GitReleaseNoteGenerator.Infrastructure;
 
@@ -28,8 +27,17 @@ public static partial class RetryHandler
     /// <param name="logger">Logger for retry event information.</param>
     /// <returns>A configured resilience pipeline.</returns>
     public static ResiliencePipeline CreatePipeline(ILogger logger) =>
+        CreatePipeline(logger, TimeProvider.System);
+
+    /// <summary>
+    /// Creates a resilience pipeline for GitHub API calls with exponential backoff.
+    /// </summary>
+    /// <param name="logger">Logger for retry event information.</param>
+    /// <param name="timeProvider">The time provider used to calculate rate limit reset delays.</param>
+    /// <returns>A configured resilience pipeline.</returns>
+    public static ResiliencePipeline CreatePipeline(ILogger logger, TimeProvider timeProvider) =>
         new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
+            .AddRetry(new()
             {
                 MaxRetryAttempts = MaxRetries,
                 BackoffType = DelayBackoffType.Exponential,
@@ -40,27 +48,31 @@ public static partial class RetryHandler
                     .Handle<ApiException>(ex => ex.StatusCode >= System.Net.HttpStatusCode.InternalServerError)
                     .Handle<HttpRequestException>()
                     .Handle<TaskCanceledException>(),
-                DelayGenerator = static args =>
-                {
-                    if (args.Outcome.Exception is RateLimitExceededException rateLimitEx)
-                    {
-                        var resetTime = rateLimitEx.Reset;
-                        var delay = resetTime - DateTimeOffset.UtcNow;
-                        if (delay > TimeSpan.Zero)
-                        {
-                            return ValueTask.FromResult<TimeSpan?>(delay + TimeSpan.FromSeconds(1));
-                        }
-                    }
-
-                    return ValueTask.FromResult<TimeSpan?>(null);
-                },
+                DelayGenerator = args => ValueTask.FromResult(CalculateRateLimitDelay(args.Outcome.Exception, timeProvider)),
                 OnRetry = args =>
                 {
                     LogRetry(logger, args.Outcome.Exception, args.AttemptNumber + 1, MaxRetries, args.RetryDelay);
                     return ValueTask.CompletedTask;
-                },
+                }
             })
             .Build();
+
+    /// <summary>
+    /// Calculates the retry delay for a GitHub rate limit reset.
+    /// </summary>
+    /// <param name="exception">The exception that triggered the retry, if any.</param>
+    /// <param name="timeProvider">The time provider used to get the current time.</param>
+    /// <returns>The rate limit reset delay, or null to use the default retry delay.</returns>
+    private static TimeSpan? CalculateRateLimitDelay(Exception? exception, TimeProvider timeProvider)
+    {
+        if (exception is not RateLimitExceededException rateLimitEx)
+        {
+            return null;
+        }
+
+        var delay = rateLimitEx.Reset - timeProvider.GetUtcNow();
+        return delay > TimeSpan.Zero ? delay + TimeSpan.FromSeconds(1) : null;
+    }
 
     /// <summary>
     /// Logs a retry attempt with the current attempt number, maximum retries, and delay.

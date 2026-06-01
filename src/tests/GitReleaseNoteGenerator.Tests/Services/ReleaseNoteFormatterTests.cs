@@ -9,10 +9,25 @@ using Octokit;
 namespace GitReleaseNoteGenerator.Tests.Services;
 
 /// <summary>
-/// Tests for <see cref="ReleaseNoteGenerator.FormatReleaseNotes"/>.
+/// Tests for the format release notes.
 /// </summary>
 public class ReleaseNoteFormatterTests
 {
+    /// <summary>
+    /// The repository owner login used in the formatter calls.
+    /// </summary>
+    private const string Owner = "owner";
+
+    /// <summary>
+    /// The repository name used in the formatter calls.
+    /// </summary>
+    private const string Repo = "repo";
+
+    /// <summary>
+    /// The full changelog URL used in the formatter calls.
+    /// </summary>
+    private const string ChangelogUrl = "https://github.com/owner/repo/compare/v1.0...v2.0";
+
     /// <summary>
     /// Tests that the output contains the What's Changed header.
     /// </summary>
@@ -24,9 +39,9 @@ public class ReleaseNoteFormatterTests
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
@@ -45,14 +60,14 @@ public class ReleaseNoteFormatterTests
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
 
-        await Assert.That(result).Contains("**Full Changelog**: https://github.com/owner/repo/compare/v1.0...v2.0");
+        await Assert.That(result).Contains($"**Full Changelog**: {ChangelogUrl}");
     }
 
     /// <summary>
@@ -64,16 +79,16 @@ public class ReleaseNoteFormatterTests
         var commit = CreateCommit("feat: new thing", "abc123");
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase)
         {
-            { "Features", [commit] },
+            { "Features", [commit] }
         };
 
         var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "testuser" };
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
@@ -93,9 +108,9 @@ public class ReleaseNoteFormatterTests
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "newuser" };
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
@@ -114,14 +129,14 @@ public class ReleaseNoteFormatterTests
         var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "octocat",
-            "dependabot[bot]",
+            "dependabot[bot]"
         };
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
@@ -143,9 +158,9 @@ public class ReleaseNoteFormatterTests
         var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
-            "owner",
-            "repo",
-            "https://github.com/owner/repo/compare/v1.0...v2.0",
+            Owner,
+            Repo,
+            ChangelogUrl,
             allAuthors,
             newAuthors,
             grouped);
@@ -177,7 +192,7 @@ public class ReleaseNoteFormatterTests
             commentCount: 0,
             verification: null);
 
-        return new GitHubCommit(
+        return new(
             nodeId: null,
             url: null,
             label: null,

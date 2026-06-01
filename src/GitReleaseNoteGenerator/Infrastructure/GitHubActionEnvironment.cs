@@ -51,16 +51,6 @@ public static class GitHubActionEnvironment
     }
 
     /// <summary>
-    /// Gets the GITHUB_REF environment variable.
-    /// </summary>
-    public static string? Ref => Environment.GetEnvironmentVariable("GITHUB_REF");
-
-    /// <summary>
-    /// Gets the GITHUB_SHA environment variable.
-    /// </summary>
-    public static string? Sha => Environment.GetEnvironmentVariable("GITHUB_SHA");
-
-    /// <summary>
     /// Gets the GITHUB_OUTPUT file path environment variable.
     /// </summary>
     public static string? OutputFile => Environment.GetEnvironmentVariable("GITHUB_OUTPUT");

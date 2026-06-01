@@ -14,16 +14,26 @@ namespace GitReleaseNoteGenerator.Tests.Services;
 public class AuthorExtractorTests
 {
     /// <summary>
+    /// A sample GitHub login used across the extraction tests.
+    /// </summary>
+    private const string Octocat = "octocat";
+
+    /// <summary>
+    /// A sample GitHub login used to verify co-author de-duplication.
+    /// </summary>
+    private const string GlennLogin = "glennawatson";
+
+    /// <summary>
     /// Tests that the primary author login is extracted.
     /// </summary>
     [Test]
     public async Task GetCommitAuthors_WithAuthorLogin_ExtractsLogin()
     {
-        var commit = CreateCommit("some message", authorLogin: "octocat");
+        var commit = CreateCommit("some message", authorLogin: Octocat);
 
         var authors = AuthorExtractor.GetCommitAuthors(commit);
 
-        await Assert.That(authors).Contains("octocat");
+        await Assert.That(authors).Contains(Octocat);
     }
 
     /// <summary>
@@ -45,12 +55,12 @@ public class AuthorExtractorTests
     [Test]
     public async Task GetCommitAuthors_WithCoAuthors_ExtractsAll()
     {
-        var message = "feat: add feature\n\nCo-authored-by: Jane <jane@example.com>\nCo-authored-by: Bob <bob@example.com>";
-        var commit = CreateCommit(message, authorLogin: "octocat");
+        const string Message = "feat: add feature\n\nCo-authored-by: Jane <jane@example.com>\nCo-authored-by: Bob <bob@example.com>";
+        var commit = CreateCommit(Message, authorLogin: Octocat);
 
         var authors = AuthorExtractor.GetCommitAuthors(commit);
 
-        await Assert.That(authors).Contains("octocat");
+        await Assert.That(authors).Contains(Octocat);
         await Assert.That(authors).Contains("Jane");
         await Assert.That(authors).Contains("Bob");
     }
@@ -61,8 +71,8 @@ public class AuthorExtractorTests
     [Test]
     public async Task GetCommitAuthors_WithIndentedCoAuthor_TrimsAndExtracts()
     {
-        var message = "fix: something\n\n  Co-authored-by: Alice <alice@example.com>";
-        var commit = CreateCommit(message, authorLogin: "octocat");
+        const string Message = "fix: something\n\n  Co-authored-by: Alice <alice@example.com>";
+        var commit = CreateCommit(Message, authorLogin: Octocat);
 
         var authors = AuthorExtractor.GetCommitAuthors(commit);
 
@@ -114,6 +124,55 @@ public class AuthorExtractorTests
     }
 
     /// <summary>
+    /// Tests that a GitHub noreply email with a numeric ID prefix yields the embedded login.
+    /// </summary>
+    [Test]
+    public async Task TryGetLoginFromNoReplyEmail_WithNumericPrefix_ReturnsLogin()
+    {
+        var login = AuthorExtractor.TryGetLoginFromNoReplyEmail("12345+glennawatson@users.noreply.github.com");
+
+        await Assert.That(login).IsEqualTo(GlennLogin);
+    }
+
+    /// <summary>
+    /// Tests that a legacy GitHub noreply email without an ID prefix yields the login.
+    /// </summary>
+    [Test]
+    public async Task TryGetLoginFromNoReplyEmail_WithoutPrefix_ReturnsLogin()
+    {
+        var login = AuthorExtractor.TryGetLoginFromNoReplyEmail("glennawatson@users.noreply.github.com");
+
+        await Assert.That(login).IsEqualTo(GlennLogin);
+    }
+
+    /// <summary>
+    /// Tests that a regular (non-noreply) email yields no login.
+    /// </summary>
+    [Test]
+    public async Task TryGetLoginFromNoReplyEmail_WithRegularEmail_ReturnsNull()
+    {
+        var login = AuthorExtractor.TryGetLoginFromNoReplyEmail("glenn@glennwatson.net");
+
+        await Assert.That(login).IsNull();
+    }
+
+    /// <summary>
+    /// Tests that a co-author whose noreply email embeds the same login as the primary author
+    /// collapses to a single contributor rather than appearing as a separate display name.
+    /// </summary>
+    [Test]
+    public async Task GetCommitAuthors_WithNoReplyCoAuthorMatchingPrimary_CollapsesToSingleLogin()
+    {
+        const string Message = "feat: add feature\n\nCo-authored-by: Glenn Watson <12345+glennawatson@users.noreply.github.com>";
+        var commit = CreateCommit(Message, authorLogin: GlennLogin);
+
+        var authors = AuthorExtractor.GetCommitAuthors(commit);
+
+        await Assert.That(authors).Contains(GlennLogin);
+        await Assert.That(authors.Count).IsEqualTo(1);
+    }
+
+    /// <summary>
     /// Tests bot detection.
     /// </summary>
     [Test]
@@ -127,10 +186,8 @@ public class AuthorExtractorTests
     /// Tests that non-bot users are not detected as bots.
     /// </summary>
     [Test]
-    public async Task IsBot_WithRegularUser_ReturnsFalse()
-    {
-        await Assert.That(AuthorExtractor.IsBot("octocat")).IsFalse();
-    }
+    public async Task IsBot_WithRegularUser_ReturnsFalse() =>
+        await Assert.That(AuthorExtractor.IsBot(Octocat)).IsFalse();
 
     /// <summary>
     /// Creates a test <see cref="GitHubCommit"/> with the specified message and optional author details.
@@ -145,7 +202,7 @@ public class AuthorExtractorTests
         string? commitAuthorName = null)
     {
         var commitAuthor = commitAuthorName is not null
-            ? new Committer(commitAuthorName, commitAuthorName + "@test.com", DateTimeOffset.Now)
+            ? new Committer(commitAuthorName, commitAuthorName + "@test.com", DateTimeOffset.UnixEpoch)
             : null;
 
         var gitCommit = new Commit(
@@ -164,7 +221,7 @@ public class AuthorExtractorTests
             commentCount: 0,
             verification: null);
 
-        Author? author = authorLogin is not null
+        var author = authorLogin is not null
             ? new Author(
                 login: authorLogin,
                 id: 1,
@@ -185,7 +242,7 @@ public class AuthorExtractorTests
                 siteAdmin: false)
             : null;
 
-        return new GitHubCommit(
+        return new(
             nodeId: null,
             url: null,
             label: null,

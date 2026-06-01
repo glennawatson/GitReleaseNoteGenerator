@@ -4,7 +4,6 @@
 
 using GitReleaseNoteGenerator.Infrastructure;
 
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
@@ -22,16 +21,16 @@ public class OutputWriterTests
     [Test]
     public async Task WriteToFileAsync_CreatesFileWithContent()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = CreateTempFilePath();
         try
         {
             var fileInfo = new FileInfo(tempFile);
-            var content = "## Release Notes\n\nSome content here.";
+            const string Content = "## Release Notes\n\nSome content here.";
 
-            await OutputWriter.WriteToFileAsync(content, fileInfo, NullLogger.Instance);
+            await OutputWriter.WriteToFileAsync(Content, fileInfo, NullLogger.Instance);
 
             var result = await File.ReadAllTextAsync(tempFile);
-            await Assert.That(result).IsEqualTo(content);
+            await Assert.That(result).IsEqualTo(Content);
         }
         finally
         {
@@ -45,14 +44,14 @@ public class OutputWriterTests
     [Test]
     public async Task WriteToGitHubOutputAsync_WritesHeredocFormat()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = CreateTempFilePath();
         try
         {
             await File.WriteAllTextAsync(tempFile, string.Empty);
             Environment.SetEnvironmentVariable("GITHUB_OUTPUT", tempFile);
 
-            var content = "## What's Changed\n\nSome changes.";
-            await OutputWriter.WriteToGitHubOutputAsync(content, "changelog", NullLogger.Instance);
+            const string Content = "## What's Changed\n\nSome changes.";
+            await OutputWriter.WriteToGitHubOutputAsync(Content, "changelog", NullLogger.Instance);
 
             var result = await File.ReadAllTextAsync(tempFile);
 
@@ -78,4 +77,10 @@ public class OutputWriterTests
         // Should not throw
         await OutputWriter.WriteToGitHubOutputAsync("content", "changelog", NullLogger.Instance);
     }
+
+    /// <summary>
+    /// Creates a unique temporary file path without using the insecure <c>Path.GetTempFileName()</c>.
+    /// </summary>
+    /// <returns>A path to a not-yet-existing file in the temporary directory.</returns>
+    private static string CreateTempFilePath() => Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 }

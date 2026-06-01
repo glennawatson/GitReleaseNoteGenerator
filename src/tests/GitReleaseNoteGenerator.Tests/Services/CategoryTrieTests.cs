@@ -12,6 +12,41 @@ namespace GitReleaseNoteGenerator.Tests.Services;
 public class CategoryTrieTests
 {
     /// <summary>
+    /// The Features category name.
+    /// </summary>
+    private const string FeaturesCategory = "Features";
+
+    /// <summary>
+    /// The Fixes category name.
+    /// </summary>
+    private const string FixesCategory = "Fixes";
+
+    /// <summary>
+    /// The Documentation category name.
+    /// </summary>
+    private const string DocumentationCategory = "Documentation";
+
+    /// <summary>
+    /// Priority assigned to the Features category in the test trie.
+    /// </summary>
+    private const int FeaturesPriority = 1;
+
+    /// <summary>
+    /// Priority assigned to the Fixes category in the test trie.
+    /// </summary>
+    private const int FixesPriority = 2;
+
+    /// <summary>
+    /// Priority assigned to the Documentation category in the test trie.
+    /// </summary>
+    private const int DocumentationPriority = 3;
+
+    /// <summary>
+    /// The number of category groups configured in the test trie.
+    /// </summary>
+    private const int ExpectedGroupCount = 3;
+
+    /// <summary>
     /// Prefixes that map to the Features category.
     /// </summary>
     private static readonly string[] FeatPrefixes = ["feat"];
@@ -36,8 +71,8 @@ public class CategoryTrieTests
 
         var result = trie.Lookup("feat: add new button");
 
-        await Assert.That(result.Name).IsEqualTo("Features");
-        await Assert.That(result.Priority).IsEqualTo(1);
+        await Assert.That(result.Name).IsEqualTo(FeaturesCategory);
+        await Assert.That(result.Priority).IsEqualTo(FeaturesPriority);
     }
 
     /// <summary>
@@ -50,7 +85,7 @@ public class CategoryTrieTests
 
         var result = trie.Lookup("FEAT: add new button");
 
-        await Assert.That(result.Name).IsEqualTo("Features");
+        await Assert.That(result.Name).IsEqualTo(FeaturesCategory);
     }
 
     /// <summary>
@@ -77,7 +112,7 @@ public class CategoryTrieTests
 
         var result = trie.Lookup("fix: resolve null reference");
 
-        await Assert.That(result.Name).IsEqualTo("Fixes");
+        await Assert.That(result.Name).IsEqualTo(FixesCategory);
     }
 
     /// <summary>
@@ -90,7 +125,7 @@ public class CategoryTrieTests
 
         var result = trie.Lookup("bug: handle edge case");
 
-        await Assert.That(result.Name).IsEqualTo("Fixes");
+        await Assert.That(result.Name).IsEqualTo(FixesCategory);
     }
 
     /// <summary>
@@ -115,7 +150,7 @@ public class CategoryTrieTests
     {
         var trie = CreateDefaultTrie();
 
-        await Assert.That(trie.Count).IsEqualTo(3);
+        await Assert.That(trie.Count).IsEqualTo(ExpectedGroupCount);
     }
 
     /// <summary>
@@ -141,10 +176,10 @@ public class CategoryTrieTests
 
         var groups = trie.ToList();
 
-        await Assert.That(groups).Count().IsEqualTo(3);
-        await Assert.That(groups[0].Category).IsEqualTo("Features");
-        await Assert.That(groups[1].Category).IsEqualTo("Fixes");
-        await Assert.That(groups[2].Category).IsEqualTo("Documentation");
+        await Assert.That(groups).Count().IsEqualTo(ExpectedGroupCount);
+        await Assert.That(groups[0].Category).IsEqualTo(FeaturesCategory);
+        await Assert.That(groups[1].Category).IsEqualTo(FixesCategory);
+        await Assert.That(groups[ExpectedGroupCount - 1].Category).IsEqualTo(DocumentationCategory);
     }
 
     /// <summary>
@@ -154,8 +189,8 @@ public class CategoryTrieTests
     private static CategoryTrie CreateDefaultTrie() => new(
         "Other",
         [
-            (1, "Features", FeatPrefixes),
-            (2, "Fixes", FixPrefixes),
-            (3, "Documentation", DocPrefixes),
+            new(FeaturesPriority, FeaturesCategory, FeatPrefixes),
+            new(FixesPriority, FixesCategory, FixPrefixes),
+            new(DocumentationPriority, DocumentationCategory, DocPrefixes)
         ]);
 }

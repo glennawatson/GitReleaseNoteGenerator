@@ -14,6 +14,11 @@ namespace GitReleaseNoteGenerator.Tests.Services;
 public class CommitCategorizerTests
 {
     /// <summary>
+    /// The Features category name.
+    /// </summary>
+    private const string FeaturesCategory = "Features";
+
+    /// <summary>
     /// Tests that a feat-prefixed commit is categorized as Features.
     /// </summary>
     [Test]
@@ -23,7 +28,7 @@ public class CommitCategorizerTests
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Features");
+        await Assert.That(category).IsEqualTo(FeaturesCategory);
     }
 
     /// <summary>
@@ -79,6 +84,111 @@ public class CommitCategorizerTests
     }
 
     /// <summary>
+    /// Tests that a scoped conventional commit is categorized by its type.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithScope_ReturnsTypeCategory()
+    {
+        var commit = CreateCommit("feat(api): add endpoint");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo(FeaturesCategory);
+    }
+
+    /// <summary>
+    /// Tests that a "!" breaking marker promotes the commit to Breaking Changes.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithBreakingBang_ReturnsBreakingChanges()
+    {
+        var commit = CreateCommit("feat!: drop legacy API");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("Breaking Changes");
+    }
+
+    /// <summary>
+    /// Tests that a scoped "!" breaking marker promotes the commit to Breaking Changes.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithScopedBreakingBang_ReturnsBreakingChanges()
+    {
+        var commit = CreateCommit("refactor(core)!: rework pipeline");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("Breaking Changes");
+    }
+
+    /// <summary>
+    /// Tests that a BREAKING CHANGE footer promotes the commit to Breaking Changes.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithBreakingChangeFooter_ReturnsBreakingChanges()
+    {
+        var commit = CreateCommit("feat: add option\n\nBREAKING CHANGE: config format changed");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("Breaking Changes");
+    }
+
+    /// <summary>
+    /// Tests that the conventional "ci" type is recognized.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithCiType_ReturnsGeneralChanges()
+    {
+        var commit = CreateCommit("ci: update workflow");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("General Changes");
+    }
+
+    /// <summary>
+    /// Tests that the conventional "revert" type is recognized.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithRevertType_ReturnsGeneralChanges()
+    {
+        var commit = CreateCommit("revert: undo bad change");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("General Changes");
+    }
+
+    /// <summary>
+    /// Tests that a non-conventional message that merely starts with a type word is not
+    /// misclassified (no colon means it is not a conventional commit).
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithNonConventionalFixWord_ReturnsOther()
+    {
+        var commit = CreateCommit("fixture cleanup for tests");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("Other");
+    }
+
+    /// <summary>
+    /// Tests that a conventional commit with an unrecognized type falls back to Other.
+    /// </summary>
+    [Test]
+    public async Task CategorizeCommit_WithUnknownType_ReturnsOther()
+    {
+        var commit = CreateCommit("wip: still working");
+
+        var (_, category) = CommitCategorizer.CategorizeCommit(commit);
+
+        await Assert.That(category).IsEqualTo("Other");
+    }
+
+    /// <summary>
     /// Tests that GroupByCategory returns commits grouped by priority order.
     /// </summary>
     [Test]
@@ -88,15 +198,17 @@ public class CommitCategorizerTests
         {
             CreateCommit("fix: something"),
             CreateCommit("feat: new thing"),
-            CreateCommit("fix: another fix"),
+            CreateCommit("fix: another fix")
         };
 
         var grouped = CommitCategorizer.GroupByCategory(commits);
 
-        await Assert.That(grouped).ContainsKey("Features");
+        const int ExpectedFixCount = 2;
+
+        await Assert.That(grouped).ContainsKey(FeaturesCategory);
         await Assert.That(grouped).ContainsKey("Fixes");
-        await Assert.That(grouped["Fixes"]).Count().IsEqualTo(2);
-        await Assert.That(grouped["Features"]).Count().IsEqualTo(1);
+        await Assert.That(grouped["Fixes"]).Count().IsEqualTo(ExpectedFixCount);
+        await Assert.That(grouped[FeaturesCategory]).Count().IsEqualTo(1);
     }
 
     /// <summary>
@@ -105,7 +217,7 @@ public class CommitCategorizerTests
     [Test]
     public async Task GetEmoji_WithKnownCategory_ReturnsEmoji()
     {
-        var emoji = CommitCategorizer.GetEmoji("Features");
+        var emoji = CommitCategorizer.GetEmoji(FeaturesCategory);
 
         await Assert.That(emoji).IsEqualTo("\u2728");
     }
@@ -145,7 +257,7 @@ public class CommitCategorizerTests
             commentCount: 0,
             verification: null);
 
-        Author? author = authorLogin is not null
+        var author = authorLogin is not null
             ? new Author(
                 login: authorLogin,
                 id: 1,
@@ -166,7 +278,7 @@ public class CommitCategorizerTests
                 siteAdmin: false)
             : null;
 
-        return new GitHubCommit(
+        return new(
             nodeId: null,
             url: null,
             label: null,

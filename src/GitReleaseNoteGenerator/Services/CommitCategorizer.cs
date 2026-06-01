@@ -2,20 +2,34 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
+
 using Octokit;
 
 namespace GitReleaseNoteGenerator.Services;
 
 /// <summary>
-/// Categorizes commits based on message prefixes and bot author overrides,
-/// then groups them by category in priority order.
+/// Categorizes commits according to the Conventional Commits specification
+/// (https://www.conventionalcommits.org), with bot author overrides, then groups them by
+/// category in priority order.
 /// </summary>
-public sealed class CommitCategorizer
+internal static partial class CommitCategorizer
 {
     /// <summary>
     /// The default category name for commits that do not match any prefix.
     /// </summary>
     private const string OtherHeading = "Other";
+
+    /// <summary>
+    /// The trie key whose lookup yields the canonical "Breaking Changes" category tuple.
+    /// </summary>
+    private const string BreakingChangeKey = "break";
+
+    /// <summary>
+    /// Line separator strings used to split commit messages into individual lines.
+    /// </summary>
+    private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
     /// <summary>
     /// Maps category names to their emoji characters used in release note headings.
@@ -32,7 +46,7 @@ public sealed class CommitCategorizer
         { "Documentation", "\U0001f4dd" },
         { "Style Changes", "\U0001f485" },
         { "Dependencies", "\U0001f4e6" },
-        { OtherHeading, "\U0001f4cc" },
+        { OtherHeading, "\U0001f4cc" }
     };
 
     /// <summary>
@@ -42,25 +56,29 @@ public sealed class CommitCategorizer
     {
         { "renovate[bot]", "dep" },
         { "dependabot[bot]", "dep" },
-        { "dependabot", "dep" },
+        { "dependabot", "dep" }
     };
 
     /// <summary>
     /// Gets the category trie used for prefix-based categorization.
     /// </summary>
-    public static CategoryTrie CategoryMap { get; } = new(
+    [SuppressMessage(
+        "Major Code Smell",
+        "S109:Magic numbers should not be used",
+        Justification = "Trie structure is defined by the Conventional Commits spec.")]
+    internal static CategoryTrie CategoryMap { get; } = new(
         OtherHeading,
         [
-            (1, "Breaking Changes", new[] { "break" }),
-            (2, "Features", new[] { "feat" }),
-            (3, "Refactoring", new[] { "refactor" }),
-            (4, "Fixes", new[] { "fix", "bug" }),
-            (5, "Performance", new[] { "perf" }),
-            (6, "General Changes", new[] { "housekeeping", "chore", "update" }),
-            (7, "Tests", new[] { "test" }),
-            (8, "Documentation", new[] { "doc" }),
-            (9, "Style Changes", new[] { "style" }),
-            (10, "Dependencies", new[] { "dep" }),
+            new(1, "Breaking Changes", ["break"]),
+            new(2, "Features", ["feat"]),
+            new(3, "Refactoring", ["refactor"]),
+            new(4, "Fixes", ["fix", "bug"]),
+            new(5, "Performance", ["perf"]),
+            new(6, "General Changes", ["housekeeping", "chore", "update", "build", "ci", "revert"]),
+            new(7, "Tests", ["test"]),
+            new(8, "Documentation", ["doc"]),
+            new(9, "Style Changes", ["style"]),
+            new(10, "Dependencies", ["dep"])
         ]);
 
     /// <summary>
@@ -69,7 +87,7 @@ public sealed class CommitCategorizer
     /// <param name="category">The category name.</param>
     /// <returns>The emoji string, or a default pin emoji if unknown.</returns>
     public static string GetEmoji(string category) =>
-        CategoryEmoji.TryGetValue(category, out var emoji) ? emoji : "\U0001f539";
+        CategoryEmoji.GetValueOrDefault(category, "\U0001f539");
 
     /// <summary>
     /// Categorizes a single commit using bot overrides first, then message-based prefix matching.
@@ -88,7 +106,7 @@ public sealed class CommitCategorizer
         }
 
         var message = commit.Commit.Message ?? string.Empty;
-        return CategoryMap[message];
+        return CategorizeMessage(message);
     }
 
     /// <summary>
@@ -124,4 +142,62 @@ public sealed class CommitCategorizer
 
         return groupedCommits;
     }
+
+    /// <summary>
+    /// Categorizes a commit message according to the Conventional Commits specification.
+    /// The first line is parsed as "type(scope)!: description"; a "!" marker or a
+    /// "BREAKING CHANGE:" footer promotes the commit to Breaking Changes. Messages that are
+    /// not valid conventional commits, or whose type is unrecognized, fall back to Other.
+    /// </summary>
+    /// <param name="message">The full commit message.</param>
+    /// <returns>The priority and category name.</returns>
+    internal static (int Priority, string Category) CategorizeMessage(string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var lines = message.Split(LineSeparators, StringSplitOptions.None);
+        var firstLine = lines.Length > 0 ? lines[0] : string.Empty;
+
+        var match = ConventionalHeaderRegex().Match(firstLine);
+        if (!match.Success)
+        {
+            return CategoryMap.OtherCategory;
+        }
+
+        if (match.Groups["breaking"].Success || HasBreakingChangeFooter(lines))
+        {
+            return CategoryMap[BreakingChangeKey];
+        }
+
+        return CategoryMap[match.Groups["type"].Value];
+    }
+
+    /// <summary>
+    /// Determines whether any line of the commit message is a "BREAKING CHANGE:" (or
+    /// "BREAKING-CHANGE:") footer, as defined by the Conventional Commits specification.
+    /// </summary>
+    /// <param name="lines">The individual lines of the commit message.</param>
+    /// <returns>True if a breaking-change footer is present; otherwise, false.</returns>
+    private static bool HasBreakingChangeFooter(string[] lines)
+    {
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("BREAKING CHANGE:", StringComparison.Ordinal)
+                || trimmed.StartsWith("BREAKING-CHANGE:", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the compiled regular expression that matches a Conventional Commits header
+    /// of the form "type(scope)!:", capturing the type and an optional breaking-change marker.
+    /// </summary>
+    /// <returns>The compiled header-matching regular expression.</returns>
+    [GeneratedRegex(@"^(?<type>[a-zA-Z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex ConventionalHeaderRegex();
 }

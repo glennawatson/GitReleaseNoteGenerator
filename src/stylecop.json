@@ -7,10 +7,10 @@
         },
         "documentationRules": {
             "documentExposedElements": true,
-            "documentInternalElements": false,
-            "documentPrivateElements": false,
+            "documentInternalElements": true,
+            "documentPrivateElements": true,
             "documentInterfaces": true,
-            "documentPrivateFields": false,
+            "documentPrivateFields": true,
             "documentationCulture": "en-US",
             "companyName": "Glenn Watson",
             "copyrightText": "Copyright (c) 2026 {companyName}. All rights reserved.\nLicensed under the {licenseName} license.\nSee the {licenseFile} file in the project root for full license information.",
@@ -36,9 +36,6 @@
         "orderingRules": {
             "usingDirectivesPlacement": "outsideNamespace",
             "systemUsingDirectivesFirst": true
-        },
-        "namingRules": {
-            "tupleElementNameCasing": "camelCase"
         }
     }
 }

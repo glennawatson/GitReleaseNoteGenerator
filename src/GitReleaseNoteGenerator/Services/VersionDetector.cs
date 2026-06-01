@@ -25,13 +25,13 @@ public static partial class VersionDetector
         var output = await TryRunAsync("nbgv", "get-version", workingDirectory, logger).ConfigureAwait(false)
                      ?? await TryRunAsync("dotnet", "nbgv get-version", workingDirectory, logger).ConfigureAwait(false);
 
-        if (output is null)
+        if (output is not null)
         {
-            LogNbgvNotAvailable(logger);
-            return null;
+            return ParseNuGetPackageVersion(output, logger);
         }
 
-        return ParseNuGetPackageVersion(output, logger);
+        LogNbgvNotAvailable(logger);
+        return null;
     }
 
     /// <summary>
@@ -42,23 +42,26 @@ public static partial class VersionDetector
     /// <returns>The parsed version string, or null if not found.</returns>
     internal static string? ParseNuGetPackageVersion(string output, ILogger? logger = null)
     {
-        var lines = output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
-        foreach (var line in lines)
+        foreach (var line in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
         {
-            if (line.StartsWith("NuGetPackageVersion", StringComparison.OrdinalIgnoreCase))
+            if (!line.StartsWith("NuGetPackageVersion", StringComparison.OrdinalIgnoreCase))
             {
-                var colonIndex = line.IndexOf(':', StringComparison.Ordinal);
-                if (colonIndex >= 0 && colonIndex < line.Length - 1)
-                {
-                    return line[(colonIndex + 1)..].Trim();
-                }
+                continue;
+            }
+
+            var colonIndex = line.IndexOf(':', StringComparison.Ordinal);
+            if (colonIndex >= 0 && colonIndex < line.Length - 1)
+            {
+                return line[(colonIndex + 1)..].Trim();
             }
         }
 
-        if (logger is not null)
+        if (logger is null)
         {
-            LogVersionNotFound(logger);
+            return null;
         }
+
+        LogVersionNotFound(logger);
 
         return null;
     }
@@ -111,7 +114,7 @@ public static partial class VersionDetector
         try
         {
             using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
+            process.StartInfo = new()
             {
                 FileName = fileName,
                 Arguments = arguments,
@@ -119,7 +122,7 @@ public static partial class VersionDetector
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
-                CreateNoWindow = true,
+                CreateNoWindow = true
             };
 
             process.Start();
@@ -129,13 +132,13 @@ public static partial class VersionDetector
 
             await process.WaitForExitAsync().ConfigureAwait(false);
 
-            if (process.ExitCode != 0)
+            if (process.ExitCode == 0)
             {
-                LogProcessExitedWithError(logger, fileName, arguments, process.ExitCode, error);
-                return null;
+                return output;
             }
 
-            return output;
+            LogProcessExitedWithError(logger, fileName, arguments, process.ExitCode, error);
+            return null;
         }
         catch (Exception ex)
         {
