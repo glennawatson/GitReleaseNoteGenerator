@@ -6,12 +6,13 @@ using System.Globalization;
 using System.Text;
 
 using GitReleaseNoteGenerator.Infrastructure;
+using GitReleaseNoteGenerator.Models;
 
 using Microsoft.Extensions.Logging;
 
-using Octokit;
-
 using Polly;
+
+using Refit;
 
 namespace GitReleaseNoteGenerator.Services;
 
@@ -28,9 +29,20 @@ public sealed partial class ReleaseNoteGenerator
     private const int MaxPaginationPages = 500;
 
     /// <summary>
+    /// The number of commits requested per page (the GitHub maximum).
+    /// </summary>
+    private const int CommitsPageSize = 100;
+
+    /// <summary>
+    /// The fallback head ref used when neither an explicit head ref nor a repository default
+    /// branch is available.
+    /// </summary>
+    private const string DefaultHeadRef = "HEAD";
+
+    /// <summary>
     /// The authenticated GitHub API client.
     /// </summary>
-    private readonly GitHubClient _client;
+    private readonly IGitHubApi _api;
 
     /// <summary>
     /// The logger for status and diagnostic messages.
@@ -50,14 +62,14 @@ public sealed partial class ReleaseNoteGenerator
     /// <summary>
     /// Initializes a new instance of the <see cref="ReleaseNoteGenerator"/> class.
     /// </summary>
-    /// <param name="client">An authenticated GitHub client.</param>
+    /// <param name="api">An authenticated GitHub API client.</param>
     /// <param name="logger">Logger for status messages.</param>
-    public ReleaseNoteGenerator(GitHubClient client, ILogger logger)
+    public ReleaseNoteGenerator(IGitHubApi api, ILogger logger)
     {
-        _client = client;
+        _api = api;
         _logger = logger;
         _retry = RetryHandler.CreatePipeline(logger);
-        _authorResolver = new(client, logger);
+        _authorResolver = new(api, logger);
     }
 
     /// <summary>
@@ -79,12 +91,12 @@ public sealed partial class ReleaseNoteGenerator
         LogGenerating(owner, repoName, version);
 
         var repo = await _retry.ExecuteAsync(
-            static async (state, _) => await state.Client.Repository.Get(state.Owner, state.RepoName).ConfigureAwait(false),
-            (Client: _client, Owner: owner, RepoName: repoName),
+            static async (state, _) => await state.Api.GetRepositoryAsync(state.Owner, state.RepoName).ConfigureAwait(false),
+            (Api: _api, Owner: owner, RepoName: repoName),
             CancellationToken.None).ConfigureAwait(false);
 
         var resolvedBaseRef = await ResolveBaseRefAsync(owner, repoName, baseRef).ConfigureAwait(false);
-        var resolvedHeadRef = headRef ?? repo.DefaultBranch;
+        var resolvedHeadRef = headRef ?? repo.DefaultBranch ?? DefaultHeadRef;
 
         LogComparing(resolvedBaseRef ?? "(all history)", resolvedHeadRef);
 
@@ -109,9 +121,10 @@ public sealed partial class ReleaseNoteGenerator
 
         var groupedCommits = CommitCategorizer.GroupByCategory(commits);
 
+        var headTag = AlignVersionWithBaseRefPrefix(version, resolvedBaseRef);
         var fullChangelogUrl = !string.IsNullOrEmpty(resolvedBaseRef)
-            ? string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/compare/{resolvedBaseRef}...{version}")
-            : string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/commits/{version}");
+            ? string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/compare/{resolvedBaseRef}...{headTag}")
+            : string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/commits/{headTag}");
 
         return FormatReleaseNotes(
             owner,
@@ -121,6 +134,32 @@ public sealed partial class ReleaseNoteGenerator
             newAuthors,
             groupedCommits,
             resolvedAuthorsByCommit);
+    }
+
+    /// <summary>
+    /// Aligns the release version with the base ref's tag-prefix convention so the generated
+    /// changelog link points at a tag that actually exists. Version tools (nbgv, MinVer, and the
+    /// like) typically emit a bare semantic version such as "10.0.0", while a repository's tags —
+    /// including the previous release used as the base ref — often carry a "v" prefix ("v10.0.0").
+    /// When the base ref is "v"-prefixed and the version is not, the same prefix is applied so the
+    /// compare view resolves (for example, ".../compare/v9.0.0...v10.0.0" rather than
+    /// ".../compare/v9.0.0...10.0.0"). When no base ref is available the version is returned as-is,
+    /// since there is no existing tag from which to infer the convention.
+    /// </summary>
+    /// <param name="version">The release version supplied on the command line.</param>
+    /// <param name="baseRef">The resolved base ref (previous release tag), or null.</param>
+    /// <returns>The version aligned to the base ref's tag prefix.</returns>
+    internal static string AlignVersionWithBaseRefPrefix(string version, string? baseRef)
+    {
+        if (string.IsNullOrEmpty(version)
+            || string.IsNullOrEmpty(baseRef)
+            || !HasVersionPrefix(baseRef)
+            || HasVersionPrefix(version))
+        {
+            return version;
+        }
+
+        return string.Concat(baseRef.AsSpan(0, 1), version);
     }
 
     /// <summary>
@@ -182,6 +221,16 @@ public sealed partial class ReleaseNoteGenerator
 
         return sb.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// Determines whether a tag or version begins with a "v"/"V" prefix immediately followed by a
+    /// digit (for example, "v10.0.0"), distinguishing a version prefix from a branch or ref that
+    /// merely happens to start with the letter "v".
+    /// </summary>
+    /// <param name="value">The tag or version to inspect.</param>
+    /// <returns>True when the value carries a version prefix; otherwise, false.</returns>
+    private static bool HasVersionPrefix(string value) =>
+        value.Length >= 2 && value[0] is 'v' or 'V' && char.IsAsciiDigit(value[1]);
 
     /// <summary>
     /// Appends the grouped commit sections to the release notes.
@@ -495,14 +544,14 @@ public sealed partial class ReleaseNoteGenerator
         try
         {
             var latestRelease = await _retry.ExecuteAsync(
-                static async (state, _) => await state.Client.Repository.Release.GetLatest(state.Owner, state.RepoName).ConfigureAwait(false),
-                (Client: _client, Owner: owner, RepoName: repoName),
+                static async (state, _) => await state.Api.GetLatestReleaseAsync(state.Owner, state.RepoName).ConfigureAwait(false),
+                (Api: _api, Owner: owner, RepoName: repoName),
                 CancellationToken.None).ConfigureAwait(false);
 
             LogLatestRelease(latestRelease?.TagName);
             return latestRelease?.TagName;
         }
-        catch (NotFoundException)
+        catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             LogNoExistingReleases();
             return null;
@@ -525,23 +574,75 @@ public sealed partial class ReleaseNoteGenerator
     {
         if (string.IsNullOrEmpty(baseRef))
         {
-            return await _retry.ExecuteAsync(
-                static async (state, _) => await state.Client.Repository.Commit
-                    .GetAll(state.Owner, state.RepoName, new CommitRequest { Sha = state.HeadRef })
-                    .ConfigureAwait(false),
-                (Client: _client, Owner: owner, RepoName: repoName, HeadRef: headRef),
-                CancellationToken.None).ConfigureAwait(false);
+            return await GetAllCommitsAsync(owner, repoName, headRef).ConfigureAwait(false);
         }
 
+        var basehead = $"{baseRef}...{headRef}";
         var comparison = await _retry.ExecuteAsync(
-            static async (state, _) => await state.Client.Repository.Commit
-                .Compare(state.Owner, state.RepoName, state.BaseRef, state.HeadRef)
+            static async (state, _) => await state.Api
+                .CompareAsync(state.Owner, state.RepoName, state.BaseHead)
                 .ConfigureAwait(false),
-            (Client: _client, Owner: owner, RepoName: repoName, BaseRef: baseRef, HeadRef: headRef),
+            (Api: _api, Owner: owner, RepoName: repoName, BaseHead: basehead),
             CancellationToken.None).ConfigureAwait(false);
 
-        return comparison.Commits;
+        return comparison.Commits ?? [];
     }
+
+    /// <summary>
+    /// Fetches every commit reachable from a head ref by paginating the commits API. Used when no
+    /// base ref exists (the repository has no releases yet) so the entire history forms the notes.
+    /// </summary>
+    /// <param name="owner">The repository owner.</param>
+    /// <param name="repoName">The repository name.</param>
+    /// <param name="headRef">The head ref to list commits from.</param>
+    /// <returns>All commits reachable from the head ref, up to the pagination cap.</returns>
+    private async Task<IReadOnlyCollection<GitHubCommit>> GetAllCommitsAsync(
+        string owner,
+        string repoName,
+        string headRef)
+    {
+        var all = new List<GitHubCommit>();
+        var page = 1;
+
+        while (page <= MaxPaginationPages)
+        {
+            var commits = await FetchCommitPageAsync(owner, repoName, headRef, page).ConfigureAwait(false);
+            if (commits.Count == 0)
+            {
+                break;
+            }
+
+            all.AddRange(commits);
+            page++;
+        }
+
+        if (page > MaxPaginationPages)
+        {
+            LogMaxPaginationReached(MaxPaginationPages);
+        }
+
+        return all;
+    }
+
+    /// <summary>
+    /// Fetches a single page of commits reachable from a ref, wrapped in the shared retry pipeline.
+    /// </summary>
+    /// <param name="owner">The repository owner.</param>
+    /// <param name="repoName">The repository name.</param>
+    /// <param name="sha">The ref SHA or name to list from, or null for the default branch.</param>
+    /// <param name="page">The 1-based page number.</param>
+    /// <returns>The commits on the requested page.</returns>
+    private async Task<IReadOnlyList<GitHubCommit>> FetchCommitPageAsync(
+        string owner,
+        string repoName,
+        string? sha,
+        int page) =>
+        await _retry.ExecuteAsync(
+            static async (state, _) => await state.Api
+                .GetCommitsAsync(state.Owner, state.RepoName, state.Sha, CommitsPageSize, state.Page)
+                .ConfigureAwait(false),
+            (Api: _api, Owner: owner, RepoName: repoName, Sha: sha, Page: page),
+            CancellationToken.None).ConfigureAwait(false);
 
     /// <summary>
     /// Fetches all authors reachable from a given ref by paginating through the commit history.
@@ -557,34 +658,23 @@ public sealed partial class ReleaseNoteGenerator
     {
         var authors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var page = 1;
-        const int PageSize = 100;
 
         while (page <= MaxPaginationPages)
         {
-            var localPage = page;
-            var commits = await _retry.ExecuteAsync(
-                static async (state, _) => await state.Client.Repository.Commit.GetAll(
-                        state.Owner,
-                        state.RepoName,
-                        new() { Sha = state.RefShaOrName },
-                        new()
-                        {
-                            PageCount = 1,
-                            PageSize = PageSize,
-                            StartPage = state.Page
-                        })
-                    .ConfigureAwait(false),
-                (Client: _client, Owner: owner, RepoName: repoName, RefShaOrName: refShaOrName, Page: localPage),
-                CancellationToken.None).ConfigureAwait(false);
+            var commits = await FetchCommitPageAsync(owner, repoName, refShaOrName, page).ConfigureAwait(false);
 
             if (commits.Count == 0)
             {
                 break;
             }
 
+            // Resolve cache-only: the (small) set of commits since the last release has already
+            // been resolved with the search API, priming the email->login cache. Walking the full
+            // history — potentially tens of thousands of commits — must not issue a search request
+            // per historical contributor, or the strict search rate limit is quickly exhausted.
             foreach (var commit in commits)
             {
-                authors.UnionWith(await _authorResolver.GetResolvedAuthorsAsync(commit).ConfigureAwait(false));
+                authors.UnionWith(await _authorResolver.GetResolvedAuthorsAsync(commit, allowSearch: false).ConfigureAwait(false));
             }
 
             page++;

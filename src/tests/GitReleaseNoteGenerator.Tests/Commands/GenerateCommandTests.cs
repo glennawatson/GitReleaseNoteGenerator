@@ -9,8 +9,6 @@ using GitReleaseNoteGenerator.Commands;
 using GitReleaseNoteGenerator.Services;
 using GitReleaseNoteGenerator.Tests.Fakes;
 
-using Octokit;
-
 namespace GitReleaseNoteGenerator.Tests.Commands;
 
 /// <summary>
@@ -250,7 +248,7 @@ public class GenerateCommandTests
         string[] args,
         string? token,
         string? repository,
-        Func<string, GitHubClient>? clientFactory)
+        Func<string, IGitHubApi>? clientFactory)
     {
         var originalToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
         var originalRepository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");

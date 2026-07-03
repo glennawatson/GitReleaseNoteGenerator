@@ -9,8 +9,6 @@ using GitReleaseNoteGenerator.Services;
 
 using Microsoft.Extensions.Logging;
 
-using Octokit;
-
 namespace GitReleaseNoteGenerator.Commands;
 
 /// <summary>
@@ -25,7 +23,7 @@ internal static partial class GenerateCommand
     /// Defaults to the real <see cref="GitHubClientFactory"/>; overridable as a seam so the
     /// end-to-end command flow can be driven against a fake transport in tests.
     /// </summary>
-    internal static Func<string, GitHubClient> ClientFactory { get; set; } = GitHubClientFactory.Create;
+    internal static Func<string, IGitHubApi> ClientFactory { get; set; } = GitHubClientFactory.Create;
 
     /// <summary>
     /// Creates the root command with all options and its execution action.

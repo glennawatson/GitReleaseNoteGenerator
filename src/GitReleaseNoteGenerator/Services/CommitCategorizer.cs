@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
-using Octokit;
+using GitReleaseNoteGenerator.Models;
 
 namespace GitReleaseNoteGenerator.Services;
 

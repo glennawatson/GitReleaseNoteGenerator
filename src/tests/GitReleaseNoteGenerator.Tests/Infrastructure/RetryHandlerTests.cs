@@ -2,15 +2,17 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 
 using GitReleaseNoteGenerator.Infrastructure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Octokit;
-
 using Polly;
+
+using Refit;
 
 namespace GitReleaseNoteGenerator.Tests.Infrastructure;
 
@@ -63,13 +65,13 @@ public class RetryHandlerTests
     }
 
     /// <summary>
-    /// Tests that a rate-limit exception whose reset is in the future yields a positive delay.
+    /// Tests that a primary rate-limit response whose reset is in the future yields a positive delay.
     /// </summary>
     [Test]
     public async Task CalculateRateLimitDelay_WithFutureReset_ReturnsPositiveDelay()
     {
         var now = DateTimeOffset.UnixEpoch;
-        var exception = CreateRateLimitException(now.AddMinutes(5).ToUnixTimeSeconds());
+        var exception = await CreateRateLimitExceptionAsync(now.AddMinutes(5).ToUnixTimeSeconds());
 
         var delay = RetryHandler.CalculateRateLimitDelay(exception, new FixedTimeProvider(now));
 
@@ -78,13 +80,13 @@ public class RetryHandlerTests
     }
 
     /// <summary>
-    /// Tests that a rate-limit exception whose reset is in the past yields no delay.
+    /// Tests that a primary rate-limit response whose reset is in the past yields no delay.
     /// </summary>
     [Test]
     public async Task CalculateRateLimitDelay_WithPastReset_ReturnsNull()
     {
         var now = DateTimeOffset.UnixEpoch.AddDays(1);
-        var exception = CreateRateLimitException(DateTimeOffset.UnixEpoch.ToUnixTimeSeconds());
+        var exception = await CreateRateLimitExceptionAsync(DateTimeOffset.UnixEpoch.ToUnixTimeSeconds());
 
         var delay = RetryHandler.CalculateRateLimitDelay(exception, new FixedTimeProvider(now));
 
@@ -103,15 +105,69 @@ public class RetryHandlerTests
     }
 
     /// <summary>
-    /// Creates a <see cref="RateLimitExceededException"/> whose rate-limit reset is the given epoch.
+    /// Tests that an abuse/secondary rate-limit response carrying a "Retry-After" hint yields a
+    /// delay at least as long as the requested wait.
+    /// </summary>
+    [Test]
+    public async Task CalculateRateLimitDelay_WithRetryAfter_HonorsRetryAfter()
+    {
+        const int retryAfterSeconds = 30;
+        var exception = await CreateRetryAfterExceptionAsync(retryAfterSeconds);
+
+        var delay = RetryHandler.CalculateRateLimitDelay(exception, TimeProvider.System);
+
+        await Assert.That(delay).IsNotNull();
+        await Assert.That(delay!.Value >= TimeSpan.FromSeconds(retryAfterSeconds)).IsTrue();
+    }
+
+    /// <summary>
+    /// Tests that a rate-limit response with no reset or retry hint yields no explicit delay, so the
+    /// pipeline falls back to its exponential backoff.
+    /// </summary>
+    [Test]
+    public async Task CalculateRateLimitDelay_WithNoHint_ReturnsNull()
+    {
+        var exception = await CreateApiExceptionAsync(HttpStatusCode.Forbidden, static _ => { });
+
+        var delay = RetryHandler.CalculateRateLimitDelay(exception, TimeProvider.System);
+
+        await Assert.That(delay).IsNull();
+    }
+
+    /// <summary>
+    /// Creates a Refit <see cref="ApiException"/> for a primary rate limit whose window resets at
+    /// the given epoch.
     /// </summary>
     /// <param name="resetEpochSeconds">The reset time as UTC epoch seconds.</param>
     /// <returns>The constructed exception.</returns>
-    private static RateLimitExceededException CreateRateLimitException(long resetEpochSeconds)
+    private static Task<ApiException> CreateRateLimitExceptionAsync(long resetEpochSeconds) =>
+        CreateApiExceptionAsync(HttpStatusCode.Forbidden, headers =>
+        {
+            headers.Add("x-ratelimit-remaining", "0");
+            headers.Add("x-ratelimit-reset", resetEpochSeconds.ToString(CultureInfo.InvariantCulture));
+        });
+
+    /// <summary>
+    /// Creates a Refit <see cref="ApiException"/> carrying a "Retry-After" header hint.
+    /// </summary>
+    /// <param name="retryAfterSeconds">The requested wait, in seconds.</param>
+    /// <returns>The constructed exception.</returns>
+    private static Task<ApiException> CreateRetryAfterExceptionAsync(int retryAfterSeconds) =>
+        CreateApiExceptionAsync(HttpStatusCode.Forbidden, headers =>
+            headers.Add("Retry-After", retryAfterSeconds.ToString(CultureInfo.InvariantCulture)));
+
+    /// <summary>
+    /// Creates a Refit <see cref="ApiException"/> for the given status with configured headers.
+    /// </summary>
+    /// <param name="status">The response status code.</param>
+    /// <param name="configureHeaders">Applies the response headers.</param>
+    /// <returns>The constructed exception.</returns>
+    private static async Task<ApiException> CreateApiExceptionAsync(HttpStatusCode status, Action<HttpResponseHeaders> configureHeaders)
     {
-        var rateLimit = new RateLimit(5000, 0, resetEpochSeconds);
-        var apiInfo = new ApiInfo(new Dictionary<string, Uri>(), [], [], "etag", rateLimit, TimeSpan.Zero);
-        return new RateLimitExceededException(new FakeResponse(apiInfo));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/");
+        using var response = new HttpResponseMessage(status) { RequestMessage = request };
+        configureHeaders(response.Headers);
+        return await ApiException.Create(request, HttpMethod.Get, response, new RefitSettings()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -122,27 +178,5 @@ public class RetryHandlerTests
     {
         /// <inheritdoc/>
         public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    /// <summary>
-    /// A minimal <see cref="IResponse"/> exposing a supplied <see cref="ApiInfo"/>.
-    /// </summary>
-    /// <param name="apiInfo">The API info to expose.</param>
-    private sealed class FakeResponse(ApiInfo apiInfo) : IResponse
-    {
-        /// <inheritdoc/>
-        public object Body => "{}";
-
-        /// <inheritdoc/>
-        public IReadOnlyDictionary<string, string> Headers { get; } = new Dictionary<string, string>();
-
-        /// <inheritdoc/>
-        public ApiInfo ApiInfo { get; } = apiInfo;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.Forbidden;
-
-        /// <inheritdoc/>
-        public string ContentType => "application/json";
     }
 }

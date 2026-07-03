@@ -2,9 +2,8 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using GitReleaseNoteGenerator.Models;
 using GitReleaseNoteGenerator.Services;
-
-using Octokit;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
@@ -200,39 +199,6 @@ public class ReleaseNoteFormatterTests
     /// <param name="message">The commit message.</param>
     /// <param name="sha">The commit SHA hash.</param>
     /// <returns>A configured <see cref="GitHubCommit"/> for testing.</returns>
-    private static GitHubCommit CreateCommit(string message, string sha)
-    {
-        var gitCommit = new Commit(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: sha,
-            user: null,
-            repository: null,
-            message: message,
-            author: null,
-            committer: null,
-            tree: null!,
-            parents: [],
-            commentCount: 0,
-            verification: null);
-
-        return new(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: sha,
-            user: null,
-            repository: null,
-            author: null,
-            commentsUrl: null,
-            commit: gitCommit,
-            committer: null,
-            htmlUrl: null,
-            stats: null,
-            parents: [],
-            files: []);
-    }
+    private static GitHubCommit CreateCommit(string message, string sha) =>
+        new(sha, new GitCommitDetail(message, Author: null, Committer: null), Author: null, Committer: null);
 }

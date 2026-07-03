@@ -84,9 +84,10 @@ public class GitHubActionEnvironmentTests
     [Test]
     public async Task OutputFile_WhenSet_ReturnsValue()
     {
-        var outputFile = WithEnv("GITHUB_OUTPUT", "/tmp/github_output", () => GitHubActionEnvironment.OutputFile);
+        const string outputPath = "github_output_path";
+        var outputFile = WithEnv("GITHUB_OUTPUT", outputPath, () => GitHubActionEnvironment.OutputFile);
 
-        await Assert.That(outputFile).IsEqualTo("/tmp/github_output");
+        await Assert.That(outputFile).IsEqualTo(outputPath);
     }
 
     /// <summary>

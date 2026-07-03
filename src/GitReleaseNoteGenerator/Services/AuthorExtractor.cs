@@ -4,8 +4,6 @@
 
 using GitReleaseNoteGenerator.Models;
 
-using Octokit;
-
 namespace GitReleaseNoteGenerator.Services;
 
 /// <summary>

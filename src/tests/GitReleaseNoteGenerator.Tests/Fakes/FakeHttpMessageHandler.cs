@@ -9,7 +9,7 @@ namespace GitReleaseNoteGenerator.Tests.Fakes;
 
 /// <summary>
 /// A test <see cref="HttpMessageHandler"/> that returns canned JSON responses based on the
-/// incoming request, used to drive the Octokit-backed API layer without real network calls.
+/// incoming request, used to drive the Refit-backed API layer without real network calls.
 /// </summary>
 internal sealed class FakeHttpMessageHandler : HttpMessageHandler
 {

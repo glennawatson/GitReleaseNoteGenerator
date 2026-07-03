@@ -2,11 +2,12 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Globalization;
+
 using GitReleaseNoteGenerator.Infrastructure;
+using GitReleaseNoteGenerator.Models;
 
 using Microsoft.Extensions.Logging;
-
-using Octokit;
 
 using Polly;
 
@@ -21,7 +22,7 @@ public sealed class GitHubUserLoginSearch : IUserLoginSearch
     /// <summary>
     /// The authenticated GitHub API client.
     /// </summary>
-    private readonly GitHubClient _client;
+    private readonly IGitHubApi _api;
 
     /// <summary>
     /// The Polly resilience pipeline for retrying failed API calls.
@@ -31,11 +32,11 @@ public sealed class GitHubUserLoginSearch : IUserLoginSearch
     /// <summary>
     /// Initializes a new instance of the <see cref="GitHubUserLoginSearch"/> class.
     /// </summary>
-    /// <param name="client">An authenticated GitHub client.</param>
+    /// <param name="api">An authenticated GitHub API client.</param>
     /// <param name="logger">Logger for retry diagnostics.</param>
-    public GitHubUserLoginSearch(GitHubClient client, ILogger logger)
+    public GitHubUserLoginSearch(IGitHubApi api, ILogger logger)
     {
-        _client = client;
+        _api = api;
         _retry = RetryHandler.CreatePipeline(logger);
     }
 
@@ -44,14 +45,11 @@ public sealed class GitHubUserLoginSearch : IUserLoginSearch
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
 
-        var request = new SearchUsersRequest(email)
-        {
-            In = [UserInQualifier.Email]
-        };
+        var query = string.Create(CultureInfo.InvariantCulture, $"{email} in:email");
 
         var result = await _retry.ExecuteAsync(
-            static async (state, _) => await state.Client.Search.SearchUsers(state.Request).ConfigureAwait(false),
-            (Client: _client, Request: request),
+            static async (state, _) => await state.Api.SearchUsersAsync(state.Query).ConfigureAwait(false),
+            (Api: _api, Query: query),
             CancellationToken.None).ConfigureAwait(false);
 
         return GetFirstLogin(result);
@@ -62,6 +60,6 @@ public sealed class GitHubUserLoginSearch : IUserLoginSearch
     /// </summary>
     /// <param name="result">The search result to inspect.</param>
     /// <returns>The first user login, or null when no users were found.</returns>
-    private static string? GetFirstLogin(SearchUsersResult result) =>
-        result.Items.Count == 0 ? null : result.Items[0].Login;
+    private static string? GetFirstLogin(GitHubUserSearchResult result) =>
+        result.Items is { Count: > 0 } items ? items[0].Login : null;
 }

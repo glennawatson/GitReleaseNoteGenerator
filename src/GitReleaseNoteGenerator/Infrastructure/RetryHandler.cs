@@ -2,11 +2,15 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
+
 using Microsoft.Extensions.Logging;
 
-using Octokit;
-
 using Polly;
+
+using Refit;
 
 namespace GitReleaseNoteGenerator.Infrastructure;
 
@@ -20,6 +24,16 @@ public static partial class RetryHandler
     /// The maximum number of retry attempts before giving up.
     /// </summary>
     private const int MaxRetries = 3;
+
+    /// <summary>
+    /// The GitHub header carrying the number of requests remaining in the current rate-limit window.
+    /// </summary>
+    private const string RateLimitRemainingHeader = "x-ratelimit-remaining";
+
+    /// <summary>
+    /// The GitHub header carrying the UTC epoch second at which the rate-limit window resets.
+    /// </summary>
+    private const string RateLimitResetHeader = "x-ratelimit-reset";
 
     /// <summary>
     /// Creates a resilience pipeline for GitHub API calls with exponential backoff.
@@ -44,8 +58,7 @@ public static partial class RetryHandler
                 UseJitter = true,
                 Delay = TimeSpan.FromSeconds(2),
                 ShouldHandle = new PredicateBuilder()
-                    .Handle<RateLimitExceededException>()
-                    .Handle<ApiException>(ex => ex.StatusCode >= System.Net.HttpStatusCode.InternalServerError)
+                    .Handle<ApiException>(ShouldRetry)
                     .Handle<HttpRequestException>()
                     .Handle<TaskCanceledException>(),
                 DelayGenerator = args => ValueTask.FromResult(CalculateRateLimitDelay(args.Outcome.Exception, timeProvider)),
@@ -58,20 +71,83 @@ public static partial class RetryHandler
             .Build();
 
     /// <summary>
-    /// Calculates the retry delay for a GitHub rate limit reset.
+    /// Calculates the retry delay for a GitHub rate limit response. A primary rate limit carries a
+    /// reset timestamp (<c>x-ratelimit-reset</c>); an abuse/secondary rate limit carries a
+    /// <c>Retry-After</c> hint. Both are honored so the tool waits exactly as long as GitHub asks.
+    /// Any other exception (or a rate limit with no usable hint) returns null, letting the pipeline
+    /// apply its exponential backoff instead.
     /// </summary>
     /// <param name="exception">The exception that triggered the retry, if any.</param>
     /// <param name="timeProvider">The time provider used to get the current time.</param>
     /// <returns>The rate limit reset delay, or null to use the default retry delay.</returns>
     internal static TimeSpan? CalculateRateLimitDelay(Exception? exception, TimeProvider timeProvider)
     {
-        if (exception is not RateLimitExceededException rateLimitEx)
+        if (exception is not ApiException apiException)
         {
             return null;
         }
 
-        var delay = rateLimitEx.Reset - timeProvider.GetUtcNow();
-        return delay > TimeSpan.Zero ? delay + TimeSpan.FromSeconds(1) : null;
+        if (IsPrimaryRateLimit(apiException)
+            && TryGetHeaderValue(apiException.Headers, RateLimitResetHeader, out var resetValue)
+            && long.TryParse(resetValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var resetEpoch))
+        {
+            var delay = DateTimeOffset.FromUnixTimeSeconds(resetEpoch) - timeProvider.GetUtcNow();
+            return delay > TimeSpan.Zero ? delay + TimeSpan.FromSeconds(1) : null;
+        }
+
+        var retryAfter = GetRetryAfter(apiException);
+        return retryAfter > TimeSpan.Zero ? retryAfter + TimeSpan.FromSeconds(1) : null;
+    }
+
+    /// <summary>
+    /// Determines whether an API failure is transient or rate-limited and therefore worth retrying.
+    /// Server errors, 429 responses, primary rate limits, and abuse/secondary limits (with a
+    /// <c>Retry-After</c> hint) are retried; other 4xx responses (authorization, not found) are not.
+    /// </summary>
+    /// <param name="exception">The API exception to inspect.</param>
+    /// <returns>True when the failure should be retried; otherwise, false.</returns>
+    private static bool ShouldRetry(ApiException exception) =>
+        (int)exception.StatusCode >= (int)HttpStatusCode.InternalServerError
+        || exception.StatusCode == HttpStatusCode.TooManyRequests
+        || IsPrimaryRateLimit(exception)
+        || GetRetryAfter(exception) > TimeSpan.Zero;
+
+    /// <summary>
+    /// Determines whether an API failure is a primary rate limit: a 403/429 response whose
+    /// <c>x-ratelimit-remaining</c> header has reached zero.
+    /// </summary>
+    /// <param name="exception">The API exception to inspect.</param>
+    /// <returns>True when the failure is a primary rate limit; otherwise, false.</returns>
+    private static bool IsPrimaryRateLimit(ApiException exception) =>
+        exception.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests
+        && TryGetHeaderValue(exception.Headers, RateLimitRemainingHeader, out var remaining)
+        && remaining == "0";
+
+    /// <summary>
+    /// Gets the <c>Retry-After</c> delay hint from an API failure, if present.
+    /// </summary>
+    /// <param name="exception">The API exception to inspect.</param>
+    /// <returns>The requested wait, or <see cref="TimeSpan.Zero"/> when none was supplied.</returns>
+    private static TimeSpan GetRetryAfter(ApiException exception) =>
+        exception.Headers?.RetryAfter?.Delta ?? TimeSpan.Zero;
+
+    /// <summary>
+    /// Reads the first value of a response header, if the header is present.
+    /// </summary>
+    /// <param name="headers">The response headers to read from, or null.</param>
+    /// <param name="name">The header name.</param>
+    /// <param name="value">The first header value, or null when the header is absent.</param>
+    /// <returns>True when the header was present; otherwise, false.</returns>
+    private static bool TryGetHeaderValue(HttpResponseHeaders? headers, string name, out string? value)
+    {
+        if (headers is not null && headers.TryGetValues(name, out var values))
+        {
+            value = values.FirstOrDefault();
+            return value is not null;
+        }
+
+        value = null;
+        return false;
     }
 
     /// <summary>

@@ -28,6 +28,16 @@ public class ReleaseNoteGeneratorApiTests
     private const string Repo = "repo";
 
     /// <summary>
+    /// The GitHub token supplied to the client factory in the fake-driven tests.
+    /// </summary>
+    private const string Token = "token";
+
+    /// <summary>
+    /// The commits API path suffix matched by the fake handler.
+    /// </summary>
+    private const string CommitsPath = "/commits";
+
+    /// <summary>
     /// A repository payload whose default branch is "main".
     /// </summary>
     private const string RepoJson = """
@@ -71,7 +81,7 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.NotFound, """{ "message": "Not Found" }""");
             }
 
-            if (path.EndsWith("/commits", StringComparison.Ordinal))
+            if (path.EndsWith(CommitsPath, StringComparison.Ordinal))
             {
                 return IsBeyondFirstPage(req.RequestUri!.Query)
                     ? (HttpStatusCode.OK, "[]")
@@ -81,7 +91,7 @@ public class ReleaseNoteGeneratorApiTests
             return (HttpStatusCode.OK, "[]");
         });
 
-        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
         var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", null, null);
 
@@ -115,7 +125,7 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, CompareJson());
             }
 
-            if (path.EndsWith("/commits", StringComparison.Ordinal))
+            if (path.EndsWith(CommitsPath, StringComparison.Ordinal))
             {
                 return IsBeyondFirstPage(req.RequestUri!.Query)
                     ? (HttpStatusCode.OK, "[]")
@@ -125,12 +135,56 @@ public class ReleaseNoteGeneratorApiTests
             return (HttpStatusCode.OK, "[]");
         });
 
-        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
         var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", null, null);
 
         await Assert.That(notes).Contains("feat: a shiny new feature");
         await Assert.That(notes).Contains("compare/v1.0.0...v2.0.0");
+    }
+
+    /// <summary>
+    /// Tests that a bare release version is aligned to the "v"-prefixed release tag so the compare
+    /// link targets the tag that actually exists (regression for changelog links ending in
+    /// "...10.0.0" instead of "...v10.0.0").
+    /// </summary>
+    [Test]
+    public async Task GenerateAsync_WithBareVersionAndVPrefixedRelease_AlignsCompareHeadToTag()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            var path = req.RequestUri!.AbsolutePath;
+            if (path == $"/repos/{Owner}/{Repo}")
+            {
+                return (HttpStatusCode.OK, RepoJson);
+            }
+
+            if (path.EndsWith("/releases/latest", StringComparison.Ordinal))
+            {
+                return (HttpStatusCode.OK, """{ "id": 1, "tag_name": "v1.0.0", "name": "v1.0.0" }""");
+            }
+
+            if (path.Contains("/compare/", StringComparison.Ordinal))
+            {
+                return (HttpStatusCode.OK, CompareJson());
+            }
+
+            if (path.EndsWith(CommitsPath, StringComparison.Ordinal))
+            {
+                return IsBeyondFirstPage(req.RequestUri!.Query)
+                    ? (HttpStatusCode.OK, "[]")
+                    : (HttpStatusCode.OK, $"[{CommitJson}]");
+            }
+
+            return (HttpStatusCode.OK, "[]");
+        });
+
+        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
+
+        var notes = await generator.GenerateAsync(Owner, Repo, "2.0.0", null, null);
+
+        await Assert.That(notes).Contains("compare/v1.0.0...v2.0.0");
+        await Assert.That(notes).DoesNotContain("compare/v1.0.0...2.0.0");
     }
 
     /// <summary>
@@ -152,7 +206,7 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, CompareJson());
             }
 
-            if (path.EndsWith("/commits", StringComparison.Ordinal))
+            if (path.EndsWith(CommitsPath, StringComparison.Ordinal))
             {
                 return IsBeyondFirstPage(req.RequestUri!.Query)
                     ? (HttpStatusCode.OK, "[]")
@@ -162,7 +216,7 @@ public class ReleaseNoteGeneratorApiTests
             return (HttpStatusCode.OK, "[]");
         });
 
-        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+        var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
         var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", "v1.5.0", null);
 

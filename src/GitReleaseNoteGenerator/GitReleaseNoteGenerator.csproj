@@ -4,6 +4,11 @@
     <OutputType>Exe</OutputType>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>git-release-notes</ToolCommandName>
+    <!-- JSON (de)serialization is AOT/trim-safe via System.Text.Json source generation
+         (see GitHubJsonContext). The IsAotCompatible analyzer gate is intentionally NOT set:
+         Refit's request-building path carries RequiresDynamicCode/RequiresUnreferencedCode
+         even with its source generator, so it cannot satisfy that gate. The tool ships
+         framework-dependent (PackAsTool), where that reflection path is present at runtime. -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="Octokit" />
+    <PackageReference Include="Refit" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     <PackageReference Include="Polly.Core" />

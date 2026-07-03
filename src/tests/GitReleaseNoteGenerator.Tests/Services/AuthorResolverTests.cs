@@ -2,12 +2,14 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Net;
+
 using GitReleaseNoteGenerator.Models;
 using GitReleaseNoteGenerator.Services;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Octokit;
+using Refit;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
@@ -33,6 +35,16 @@ public class AuthorResolverTests
     private const string GlennEmail = "glenn@glennwatson.net";
 
     /// <summary>
+    /// The normalized display name that <see cref="GlennName"/> collapses to when no login is found.
+    /// </summary>
+    private const string GlennNormalizedName = "GlennWatson";
+
+    /// <summary>
+    /// A GitHub login used as a primary author in the multi-contributor tests.
+    /// </summary>
+    private const string OctocatLogin = "octocat";
+
+    /// <summary>
     /// Tests that the GitHub-client constructor wires up the default API-backed login search.
     /// </summary>
     [Test]
@@ -52,9 +64,9 @@ public class AuthorResolverTests
         var search = new FakeUserLoginSearch();
         var resolver = new AuthorResolver(search, NullLogger.Instance);
 
-        var result = await resolver.ResolveAsync(new("octocat", "Octo Cat", "octo@example.com"));
+        var result = await resolver.ResolveAsync(new(OctocatLogin, "Octo Cat", "octo@example.com"));
 
-        await Assert.That(result).IsEqualTo("octocat");
+        await Assert.That(result).IsEqualTo(OctocatLogin);
         await Assert.That(search.CallCount).IsEqualTo(0);
     }
 
@@ -100,7 +112,7 @@ public class AuthorResolverTests
 
         var result = await resolver.ResolveAsync(new(null, GlennName, null));
 
-        await Assert.That(result).IsEqualTo("GlennWatson");
+        await Assert.That(result).IsEqualTo(GlennNormalizedName);
         await Assert.That(search.CallCount).IsEqualTo(0);
     }
 
@@ -115,7 +127,7 @@ public class AuthorResolverTests
 
         var result = await resolver.ResolveAsync(new(null, GlennName, GlennEmail));
 
-        await Assert.That(result).IsEqualTo("GlennWatson");
+        await Assert.That(result).IsEqualTo(GlennNormalizedName);
     }
 
     /// <summary>
@@ -161,7 +173,7 @@ public class AuthorResolverTests
 
         var result = await resolver.ResolveAsync(new(null, GlennName, GlennEmail));
 
-        await Assert.That(result).IsEqualTo("GlennWatson");
+        await Assert.That(result).IsEqualTo(GlennNormalizedName);
     }
 
     /// <summary>
@@ -184,67 +196,60 @@ public class AuthorResolverTests
     }
 
     /// <summary>
+    /// Tests that resolving with search disabled does not query the search API for an email that
+    /// has not already been cached, falling back to the normalized display name instead. This is
+    /// the behavior the full-history author walk relies on to avoid the search rate limit.
+    /// </summary>
+    [Test]
+    public async Task GetResolvedAuthorsAsync_WhenSearchDisabled_DoesNotQueryForUnseenEmail()
+    {
+        var search = new FakeUserLoginSearch(new() { [GlennEmail] = GlennLogin });
+        var resolver = new AuthorResolver(search, NullLogger.Instance);
+        var commit = CreateCommit(
+            $"feat: add feature\n\nCo-authored-by: {GlennName} <{GlennEmail}>",
+            authorLogin: OctocatLogin);
+
+        var authors = await resolver.GetResolvedAuthorsAsync(commit, allowSearch: false);
+
+        await Assert.That(search.CallCount).IsEqualTo(0);
+        await Assert.That(authors).Contains(OctocatLogin);
+        await Assert.That(authors).Contains(GlennNormalizedName);
+    }
+
+    /// <summary>
+    /// Tests that resolving with search disabled still returns a login for an email cached by an
+    /// earlier search-enabled pass, so the small "since last release" set primes the cache and the
+    /// history walk reuses it without new queries.
+    /// </summary>
+    [Test]
+    public async Task GetResolvedAuthorsAsync_WhenSearchDisabledButCached_UsesCachedLogin()
+    {
+        var search = new FakeUserLoginSearch(new() { [GlennEmail] = GlennLogin });
+        var resolver = new AuthorResolver(search, NullLogger.Instance);
+        var commit = CreateCommit(
+            $"feat: add feature\n\nCo-authored-by: {GlennName} <{GlennEmail}>",
+            authorLogin: OctocatLogin);
+
+        await resolver.GetResolvedAuthorsAsync(commit, allowSearch: true);
+        var authors = await resolver.GetResolvedAuthorsAsync(commit, allowSearch: false);
+
+        await Assert.That(search.CallCount).IsEqualTo(1);
+        await Assert.That(authors).Contains(GlennLogin);
+        await Assert.That(authors).Contains(OctocatLogin);
+    }
+
+    /// <summary>
     /// Creates a test <see cref="GitHubCommit"/> with the specified message and optional author login.
     /// </summary>
     /// <param name="message">The commit message.</param>
     /// <param name="authorLogin">The GitHub login of the author, or null.</param>
     /// <returns>A configured <see cref="GitHubCommit"/> for testing.</returns>
-    private static GitHubCommit CreateCommit(string message, string? authorLogin = null)
-    {
-        var gitCommit = new Commit(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: "abc123",
-            user: null,
-            repository: null,
-            message: message,
-            author: null,
-            committer: null,
-            tree: null!,
-            parents: [],
-            commentCount: 0,
-            verification: null);
-
-        var author = authorLogin is not null
-            ? new Author(
-                login: authorLogin,
-                id: 1,
-                nodeId: null,
-                avatarUrl: null,
-                url: null,
-                htmlUrl: null,
-                followersUrl: null,
-                followingUrl: null,
-                gistsUrl: null,
-                type: "User",
-                starredUrl: null,
-                subscriptionsUrl: null,
-                organizationsUrl: null,
-                reposUrl: null,
-                eventsUrl: null,
-                receivedEventsUrl: null,
-                siteAdmin: false)
-            : null;
-
-        return new(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: "abc123",
-            user: null,
-            repository: null,
-            author: author,
-            commentsUrl: null,
-            commit: gitCommit,
-            committer: null,
-            htmlUrl: null,
-            stats: null,
-            parents: [],
-            files: []);
-    }
+    private static GitHubCommit CreateCommit(string message, string? authorLogin = null) =>
+        new(
+            "abc123",
+            new GitCommitDetail(message, Author: null, Committer: null),
+            authorLogin is not null ? new GitHubUser(authorLogin) : null,
+            Committer: null);
 
     /// <summary>
     /// A hand-rolled <see cref="IUserLoginSearch"/> test double that returns canned results
@@ -279,16 +284,27 @@ public class AuthorResolverTests
         public int CallCount { get; private set; }
 
         /// <inheritdoc/>
-        public Task<string?> FindLoginByEmailAsync(string email)
+        public async Task<string?> FindLoginByEmailAsync(string email)
         {
             CallCount++;
             if (_throwApiException)
             {
-                throw new ApiException();
+                throw await CreateApiExceptionAsync().ConfigureAwait(false);
             }
 
             _responses.TryGetValue(email, out var login);
-            return Task.FromResult(login);
+            return login;
+        }
+
+        /// <summary>
+        /// Builds a Refit <see cref="ApiException"/> equivalent to a failed search-users call.
+        /// </summary>
+        /// <returns>The constructed exception.</returns>
+        private static async Task<ApiException> CreateApiExceptionAsync()
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/search/users");
+            using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity) { RequestMessage = request };
+            return await ApiException.Create(request, HttpMethod.Get, response, new RefitSettings()).ConfigureAwait(false);
         }
     }
 }

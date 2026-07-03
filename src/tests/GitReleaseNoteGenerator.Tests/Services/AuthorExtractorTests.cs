@@ -2,9 +2,8 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using GitReleaseNoteGenerator.Models;
 using GitReleaseNoteGenerator.Services;
-
-using Octokit;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
@@ -215,62 +214,14 @@ public class AuthorExtractorTests
         string? authorLogin = null,
         string? commitAuthorName = null)
     {
-        var commitAuthor = commitAuthorName is not null
-            ? new Committer(commitAuthorName, commitAuthorName + "@test.com", DateTimeOffset.UnixEpoch)
+        var signature = commitAuthorName is not null
+            ? new GitSignature(commitAuthorName, commitAuthorName + "@test.com")
             : null;
 
-        var gitCommit = new Commit(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: "abc123",
-            user: null,
-            repository: null,
-            message: message,
-            author: commitAuthor,
-            committer: commitAuthor,
-            tree: null!,
-            parents: [],
-            commentCount: 0,
-            verification: null);
-
-        var author = authorLogin is not null
-            ? new Author(
-                login: authorLogin,
-                id: 1,
-                nodeId: null,
-                avatarUrl: null,
-                url: null,
-                htmlUrl: null,
-                followersUrl: null,
-                followingUrl: null,
-                gistsUrl: null,
-                type: "User",
-                starredUrl: null,
-                subscriptionsUrl: null,
-                organizationsUrl: null,
-                reposUrl: null,
-                eventsUrl: null,
-                receivedEventsUrl: null,
-                siteAdmin: false)
-            : null;
-
-        return new(
-            nodeId: null,
-            url: null,
-            label: null,
-            @ref: null,
-            sha: "abc123",
-            user: null,
-            repository: null,
-            author: author,
-            commentsUrl: null,
-            commit: gitCommit,
-            committer: null,
-            htmlUrl: null,
-            stats: null,
-            parents: [],
-            files: []);
+        return new GitHubCommit(
+            "abc123",
+            new GitCommitDetail(message, signature, signature),
+            authorLogin is not null ? new GitHubUser(authorLogin) : null,
+            Committer: null);
     }
 }
