@@ -10,31 +10,20 @@ using Refit;
 
 namespace GitReleaseNoteGenerator.Services;
 
-/// <summary>
-/// Creates authenticated <see cref="IGitHubApi"/> clients backed by Refit and the
-/// source-generated JSON context.
-/// </summary>
+/// <summary>Creates authenticated <see cref="IGitHubApi"/> clients backed by Refit and the source-generated JSON context.</summary>
 public static class GitHubClientFactory
 {
-    /// <summary>
-    /// The product name sent as the required GitHub API User-Agent.
-    /// </summary>
+    /// <summary>The product name sent as the required GitHub API User-Agent.</summary>
     private const string ProductName = "GitReleaseNoteGenerator";
 
-    /// <summary>
-    /// The GitHub REST API base address.
-    /// </summary>
-    private static readonly Uri BaseAddress = new("https://api.github.com/");
+    /// <summary>The GitHub REST API base address.</summary>
+    private static readonly Uri ApiBaseAddress = new("https://api.github.com/");
 
-    /// <summary>
-    /// Refit settings wired to the AOT-safe source-generated JSON context.
-    /// </summary>
+    /// <summary>Refit settings wired to the AOT-safe source-generated JSON context.</summary>
     private static readonly RefitSettings Settings = new(
         new SystemTextJsonContentSerializer(GitHubJsonContext.Default.Options));
 
-    /// <summary>
-    /// Creates a new <see cref="IGitHubApi"/> authenticated with the given token.
-    /// </summary>
+    /// <summary>Creates a new <see cref="IGitHubApi"/> authenticated with the given token.</summary>
     /// <param name="token">The GitHub personal access token.</param>
     /// <returns>An authenticated GitHub API client.</returns>
     public static IGitHubApi Create(string token) =>
@@ -54,16 +43,14 @@ public static class GitHubClientFactory
 
         var httpClient = new HttpClient(handler, disposeHandler: false)
         {
-            BaseAddress = BaseAddress,
+            BaseAddress = ApiBaseAddress,
         };
         ConfigureDefaultHeaders(httpClient, token);
 
         return RestService.For<IGitHubApi>(httpClient, Settings);
     }
 
-    /// <summary>
-    /// Applies the GitHub-required User-Agent, media type, API version, and authorization headers.
-    /// </summary>
+    /// <summary>Applies the GitHub-required User-Agent, media type, API version, and authorization headers.</summary>
     /// <param name="httpClient">The client to configure.</param>
     /// <param name="token">The GitHub personal access token.</param>
     private static void ConfigureDefaultHeaders(HttpClient httpClient, string token)
@@ -78,6 +65,6 @@ public static class GitHubClientFactory
             return;
         }
 
-        headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        headers.Authorization = new("Bearer", token);
     }
 }

@@ -6,26 +6,18 @@ using GitReleaseNoteGenerator.Infrastructure;
 
 namespace GitReleaseNoteGenerator.Tests.Infrastructure;
 
-/// <summary>
-/// Tests for <see cref="GitHubActionEnvironment"/>. These mutate process environment
-/// variables and must not run in parallel.
-/// </summary>
+/// <summary>Tests for <see cref="GitHubActionEnvironment"/>. These mutate process environment variables and must not run in parallel.</summary>
 [NotInParallel]
 public class GitHubActionEnvironmentTests
 {
-    /// <summary>
-    /// The GITHUB_REPOSITORY environment variable name.
-    /// </summary>
+    /// <summary>The GITHUB_REPOSITORY environment variable name.</summary>
     private const string RepositoryEnv = "GITHUB_REPOSITORY";
 
-    /// <summary>
-    /// A sample "owner/repo" slug.
-    /// </summary>
+    /// <summary>A sample "owner/repo" slug.</summary>
     private const string RepoSlug = "octocat/Hello-World";
 
-    /// <summary>
-    /// Tests that the token is read from GITHUB_TOKEN.
-    /// </summary>
+    /// <summary>Tests that the token is read from GITHUB_TOKEN.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Token_WhenSet_ReturnsValue()
     {
@@ -34,9 +26,8 @@ public class GitHubActionEnvironmentTests
         await Assert.That(token).IsEqualTo("ghp_example");
     }
 
-    /// <summary>
-    /// Tests that the owner is parsed from the "owner/repo" slug.
-    /// </summary>
+    /// <summary>Tests that the owner is parsed from the "owner/repo" slug.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task RepositoryOwner_WithOwnerSlashRepo_ReturnsOwner()
     {
@@ -45,9 +36,8 @@ public class GitHubActionEnvironmentTests
         await Assert.That(owner).IsEqualTo("octocat");
     }
 
-    /// <summary>
-    /// Tests that the repository name is parsed from the "owner/repo" slug.
-    /// </summary>
+    /// <summary>Tests that the repository name is parsed from the "owner/repo" slug.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task RepositoryName_WithOwnerSlashRepo_ReturnsName()
     {
@@ -56,9 +46,8 @@ public class GitHubActionEnvironmentTests
         await Assert.That(name).IsEqualTo("Hello-World");
     }
 
-    /// <summary>
-    /// Tests that an unset GITHUB_REPOSITORY yields a null owner.
-    /// </summary>
+    /// <summary>Tests that an unset GITHUB_REPOSITORY yields a null owner.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task RepositoryOwner_WhenUnset_ReturnsNull()
     {
@@ -67,9 +56,8 @@ public class GitHubActionEnvironmentTests
         await Assert.That(owner).IsNull();
     }
 
-    /// <summary>
-    /// Tests that a slug without a slash yields a null repository name.
-    /// </summary>
+    /// <summary>Tests that a slug without a slash yields a null repository name.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task RepositoryName_WithoutSlash_ReturnsNull()
     {
@@ -78,9 +66,8 @@ public class GitHubActionEnvironmentTests
         await Assert.That(name).IsNull();
     }
 
-    /// <summary>
-    /// Tests that the output file path is read from GITHUB_OUTPUT.
-    /// </summary>
+    /// <summary>Tests that the output file path is read from GITHUB_OUTPUT.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task OutputFile_WhenSet_ReturnsValue()
     {
@@ -90,9 +77,7 @@ public class GitHubActionEnvironmentTests
         await Assert.That(outputFile).IsEqualTo(outputPath);
     }
 
-    /// <summary>
-    /// Sets an environment variable for the duration of <paramref name="read"/>, then restores it.
-    /// </summary>
+    /// <summary>Sets an environment variable for the duration of <paramref name="read"/>, then restores it.</summary>
     /// <param name="name">The environment variable name.</param>
     /// <param name="value">The temporary value (null to unset).</param>
     /// <param name="read">The accessor to evaluate while the variable is set.</param>

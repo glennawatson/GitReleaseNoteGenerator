@@ -7,29 +7,20 @@ using GitReleaseNoteGenerator.Services;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for the format release notes.
-/// </summary>
+/// <summary>Tests for the format release notes.</summary>
 public class ReleaseNoteFormatterTests
 {
-    /// <summary>
-    /// The repository owner login used in the formatter calls.
-    /// </summary>
+    /// <summary>The repository owner login used in the formatter calls.</summary>
     private const string Owner = "owner";
 
-    /// <summary>
-    /// The repository name used in the formatter calls.
-    /// </summary>
+    /// <summary>The repository name used in the formatter calls.</summary>
     private const string Repo = "repo";
 
-    /// <summary>
-    /// The full changelog URL used in the formatter calls.
-    /// </summary>
+    /// <summary>The full changelog URL used in the formatter calls.</summary>
     private const string ChangelogUrl = "https://github.com/owner/repo/compare/v1.0...v2.0";
 
-    /// <summary>
-    /// Tests that the output contains the What's Changed header.
-    /// </summary>
+    /// <summary>Tests that the output contains the What's Changed header.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_ContainsWhatsChangedHeader()
     {
@@ -48,9 +39,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("What's Changed");
     }
 
-    /// <summary>
-    /// Tests that the output contains the full changelog link.
-    /// </summary>
+    /// <summary>Tests that the output contains the full changelog link.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_ContainsFullChangelogLink()
     {
@@ -69,9 +59,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains($"**Full Changelog**: {ChangelogUrl}");
     }
 
-    /// <summary>
-    /// Tests that grouped commits appear under the correct category heading.
-    /// </summary>
+    /// <summary>Tests that grouped commits appear under the correct category heading.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_WithCommits_ShowsCategoryHeadings()
     {
@@ -96,9 +85,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("owner/repo@abc123");
     }
 
-    /// <summary>
-    /// Tests that new contributors are listed separately.
-    /// </summary>
+    /// <summary>Tests that new contributors are listed separately.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_WithNewAuthors_ShowsNewContributors()
     {
@@ -118,9 +106,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("@newuser");
     }
 
-    /// <summary>
-    /// Tests that bot contributors are listed separately.
-    /// </summary>
+    /// <summary>Tests that bot contributors are listed separately.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_WithBotAuthors_ShowsBotSection()
     {
@@ -146,9 +133,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("@octocat");
     }
 
-    /// <summary>
-    /// Tests that the Contributions section is always present.
-    /// </summary>
+    /// <summary>Tests that the Contributions section is always present.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_AlwaysContainsContributionsSection()
     {
@@ -167,9 +153,8 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("Contributions");
     }
 
-    /// <summary>
-    /// Tests that a category outside the known map is rendered as its own custom section.
-    /// </summary>
+    /// <summary>Tests that a category outside the known map is rendered as its own custom section.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FormatReleaseNotes_WithUnknownCategory_RendersCustomSection()
     {
@@ -193,9 +178,7 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("owner/repo@def456");
     }
 
-    /// <summary>
-    /// Creates a test <see cref="GitHubCommit"/> with the specified message and SHA.
-    /// </summary>
+    /// <summary>Creates a test <see cref="GitHubCommit"/> with the specified message and SHA.</summary>
     /// <param name="message">The commit message.</param>
     /// <param name="sha">The commit SHA hash.</param>
     /// <returns>A configured <see cref="GitHubCommit"/> for testing.</returns>

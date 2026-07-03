@@ -16,24 +16,16 @@ namespace GitReleaseNoteGenerator.Services;
 /// </summary>
 internal static partial class CommitCategorizer
 {
-    /// <summary>
-    /// The default category name for commits that do not match any prefix.
-    /// </summary>
+    /// <summary>The default category name for commits that do not match any prefix.</summary>
     private const string OtherHeading = "Other";
 
-    /// <summary>
-    /// The trie key whose lookup yields the canonical "Breaking Changes" category tuple.
-    /// </summary>
+    /// <summary>The trie key whose lookup yields the canonical "Breaking Changes" category tuple.</summary>
     private const string BreakingChangeKey = "break";
 
-    /// <summary>
-    /// Line separator strings used to split commit messages into individual lines.
-    /// </summary>
+    /// <summary>Line separator strings used to split commit messages into individual lines.</summary>
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
-    /// <summary>
-    /// Maps category names to their emoji characters used in release note headings.
-    /// </summary>
+    /// <summary>Maps category names to their emoji characters used in release note headings.</summary>
     private static readonly Dictionary<string, string> CategoryEmoji = new(StringComparer.OrdinalIgnoreCase)
     {
         { "Breaking Changes", "\U0001f4a5" },
@@ -49,9 +41,7 @@ internal static partial class CommitCategorizer
         { OtherHeading, "\U0001f4cc" }
     };
 
-    /// <summary>
-    /// Maps known bot login names to the category prefix key used for trie lookup.
-    /// </summary>
+    /// <summary>Maps known bot login names to the category prefix key used for trie lookup.</summary>
     private static readonly Dictionary<string, string> BotLoginToCategoryKey = new(StringComparer.OrdinalIgnoreCase)
     {
         { "renovate[bot]", "dep" },
@@ -59,9 +49,7 @@ internal static partial class CommitCategorizer
         { "dependabot", "dep" }
     };
 
-    /// <summary>
-    /// Gets the category trie used for prefix-based categorization.
-    /// </summary>
+    /// <summary>Gets the category trie used for prefix-based categorization.</summary>
     [SuppressMessage(
         "Major Code Smell",
         "S109:Magic numbers should not be used",
@@ -81,17 +69,13 @@ internal static partial class CommitCategorizer
             new(10, "Dependencies", ["dep"])
         ]);
 
-    /// <summary>
-    /// Gets the emoji for a given category name.
-    /// </summary>
+    /// <summary>Gets the emoji for a given category name.</summary>
     /// <param name="category">The category name.</param>
     /// <returns>The emoji string, or a default pin emoji if unknown.</returns>
     public static string GetEmoji(string category) =>
         CategoryEmoji.GetValueOrDefault(category, "\U0001f539");
 
-    /// <summary>
-    /// Categorizes a single commit using bot overrides first, then message-based prefix matching.
-    /// </summary>
+    /// <summary>Categorizes a single commit using bot overrides first, then message-based prefix matching.</summary>
     /// <param name="commit">The commit to categorize.</param>
     /// <returns>The priority and category name.</returns>
     public static (int Priority, string Category) CategorizeCommit(GitHubCommit commit)
@@ -109,9 +93,7 @@ internal static partial class CommitCategorizer
         return CategorizeMessage(message);
     }
 
-    /// <summary>
-    /// Groups commits by category, ordered by category priority.
-    /// </summary>
+    /// <summary>Groups commits by category, ordered by category priority.</summary>
     /// <param name="commits">The commits to group.</param>
     /// <returns>A dictionary mapping category names to their commits, in priority order.</returns>
     public static Dictionary<string, List<GitHubCommit>> GroupByCategory(IEnumerable<GitHubCommit> commits)
@@ -164,12 +146,7 @@ internal static partial class CommitCategorizer
             return CategoryMap.OtherCategory;
         }
 
-        if (match.Groups["breaking"].Success || HasBreakingChangeFooter(lines))
-        {
-            return CategoryMap[BreakingChangeKey];
-        }
-
-        return CategoryMap[match.Groups["type"].Value];
+        return match.Groups["breaking"].Success || HasBreakingChangeFooter(lines) ? CategoryMap[BreakingChangeKey] : CategoryMap[match.Groups["type"].Value];
     }
 
     /// <summary>

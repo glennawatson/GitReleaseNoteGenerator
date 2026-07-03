@@ -13,40 +13,26 @@ using Refit;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="AuthorResolver"/>, exercising the email-to-login API tier through a
-/// hand-rolled <see cref="IUserLoginSearch"/> test double (no mocking framework).
-/// </summary>
+/// <summary>Tests for <see cref="AuthorResolver"/>, exercising the email-to-login API tier through a hand-rolled <see cref="IUserLoginSearch"/> test double (no mocking framework).</summary>
 public class AuthorResolverTests
 {
-    /// <summary>
-    /// A contributor display name used across the resolution tests.
-    /// </summary>
+    /// <summary>A contributor display name used across the resolution tests.</summary>
     private const string GlennName = "Glenn Watson";
 
-    /// <summary>
-    /// The GitHub login that the display name and email resolve to.
-    /// </summary>
+    /// <summary>The GitHub login that the display name and email resolve to.</summary>
     private const string GlennLogin = "glennawatson";
 
-    /// <summary>
-    /// A real (non-noreply) email used across the resolution tests.
-    /// </summary>
+    /// <summary>A real (non-noreply) email used across the resolution tests.</summary>
     private const string GlennEmail = "glenn@glennwatson.net";
 
-    /// <summary>
-    /// The normalized display name that <see cref="GlennName"/> collapses to when no login is found.
-    /// </summary>
+    /// <summary>The normalized display name that <see cref="GlennName"/> collapses to when no login is found.</summary>
     private const string GlennNormalizedName = "GlennWatson";
 
-    /// <summary>
-    /// A GitHub login used as a primary author in the multi-contributor tests.
-    /// </summary>
+    /// <summary>A GitHub login used as a primary author in the multi-contributor tests.</summary>
     private const string OctocatLogin = "octocat";
 
-    /// <summary>
-    /// Tests that the GitHub-client constructor wires up the default API-backed login search.
-    /// </summary>
+    /// <summary>Tests that the GitHub-client constructor wires up the default API-backed login search.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Constructor_WithGitHubClient_CreatesResolver()
     {
@@ -55,9 +41,8 @@ public class AuthorResolverTests
         await Assert.That(resolver).IsNotNull();
     }
 
-    /// <summary>
-    /// Tests that an already-resolved login is returned without querying the search API.
-    /// </summary>
+    /// <summary>Tests that an already-resolved login is returned without querying the search API.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WithExistingLogin_DoesNotQuerySearch()
     {
@@ -70,9 +55,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(0);
     }
 
-    /// <summary>
-    /// Tests that a GitHub noreply email is resolved locally without querying the search API.
-    /// </summary>
+    /// <summary>Tests that a GitHub noreply email is resolved locally without querying the search API.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WithNoReplyEmail_DoesNotQuerySearch()
     {
@@ -86,9 +70,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(0);
     }
 
-    /// <summary>
-    /// Tests that a real email is resolved to a login via the search API.
-    /// </summary>
+    /// <summary>Tests that a real email is resolved to a login via the search API.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WithRealEmail_ReturnsLoginFromSearch()
     {
@@ -101,9 +84,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that a contributor with no email falls back to the name without querying the API.
-    /// </summary>
+    /// <summary>Tests that a contributor with no email falls back to the name without querying the API.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WithNoEmail_FallsBackToNameWithoutQuery()
     {
@@ -116,9 +98,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(0);
     }
 
-    /// <summary>
-    /// Tests that an unresolvable email falls back to the normalized display name.
-    /// </summary>
+    /// <summary>Tests that an unresolvable email falls back to the normalized display name.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WithUnresolvableEmail_FallsBackToName()
     {
@@ -130,9 +111,8 @@ public class AuthorResolverTests
         await Assert.That(result).IsEqualTo(GlennNormalizedName);
     }
 
-    /// <summary>
-    /// Tests that a successful lookup is cached so the search API is queried only once.
-    /// </summary>
+    /// <summary>Tests that a successful lookup is cached so the search API is queried only once.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_CachesSuccessfulLookup()
     {
@@ -146,9 +126,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that an unsuccessful lookup is cached so the search API is not queried again.
-    /// </summary>
+    /// <summary>Tests that an unsuccessful lookup is cached so the search API is not queried again.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_CachesNegativeLookup()
     {
@@ -162,9 +141,8 @@ public class AuthorResolverTests
         await Assert.That(search.CallCount).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that an API failure is swallowed and resolution falls back to the display name.
-    /// </summary>
+    /// <summary>Tests that an API failure is swallowed and resolution falls back to the display name.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ResolveAsync_WhenSearchThrows_FallsBackToName()
     {
@@ -176,10 +154,8 @@ public class AuthorResolverTests
         await Assert.That(result).IsEqualTo(GlennNormalizedName);
     }
 
-    /// <summary>
-    /// Tests that a primary author and a co-author whose email resolves to the same login
-    /// collapse into a single contributor.
-    /// </summary>
+    /// <summary>Tests that a primary author and a co-author whose email resolves to the same login collapse into a single contributor.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetResolvedAuthorsAsync_WithApiResolvedCoAuthor_CollapsesToSingleLogin()
     {
@@ -200,6 +176,7 @@ public class AuthorResolverTests
     /// has not already been cached, falling back to the normalized display name instead. This is
     /// the behavior the full-history author walk relies on to avoid the search rate limit.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetResolvedAuthorsAsync_WhenSearchDisabled_DoesNotQueryForUnseenEmail()
     {
@@ -221,6 +198,7 @@ public class AuthorResolverTests
     /// earlier search-enabled pass, so the small "since last release" set primes the cache and the
     /// history walk reuses it without new queries.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetResolvedAuthorsAsync_WhenSearchDisabledButCached_UsesCachedLogin()
     {
@@ -238,9 +216,7 @@ public class AuthorResolverTests
         await Assert.That(authors).Contains(OctocatLogin);
     }
 
-    /// <summary>
-    /// Creates a test <see cref="GitHubCommit"/> with the specified message and optional author login.
-    /// </summary>
+    /// <summary>Creates a test <see cref="GitHubCommit"/> with the specified message and optional author login.</summary>
     /// <param name="message">The commit message.</param>
     /// <param name="authorLogin">The GitHub login of the author, or null.</param>
     /// <returns>A configured <see cref="GitHubCommit"/> for testing.</returns>
@@ -251,25 +227,16 @@ public class AuthorResolverTests
             authorLogin is not null ? new GitHubUser(authorLogin) : null,
             Committer: null);
 
-    /// <summary>
-    /// A hand-rolled <see cref="IUserLoginSearch"/> test double that returns canned results
-    /// and records how many times it was queried.
-    /// </summary>
+    /// <summary>A hand-rolled <see cref="IUserLoginSearch"/> test double that returns canned results and records how many times it was queried.</summary>
     private sealed class FakeUserLoginSearch : IUserLoginSearch
     {
-        /// <summary>
-        /// The configured email-to-login responses.
-        /// </summary>
+        /// <summary>The configured email-to-login responses.</summary>
         private readonly Dictionary<string, string?> _responses;
 
-        /// <summary>
-        /// Whether each lookup should throw an <see cref="ApiException"/>.
-        /// </summary>
+        /// <summary>Whether each lookup should throw an <see cref="ApiException"/>.</summary>
         private readonly bool _throwApiException;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FakeUserLoginSearch"/> class.
-        /// </summary>
+        /// <summary>Initializes a new instance of the <see cref="FakeUserLoginSearch"/> class.</summary>
         /// <param name="responses">The configured email-to-login responses, or null for none.</param>
         /// <param name="throwApiException">Whether each lookup should throw an API exception.</param>
         public FakeUserLoginSearch(Dictionary<string, string?>? responses = null, bool throwApiException = false)
@@ -278,9 +245,7 @@ public class AuthorResolverTests
             _throwApiException = throwApiException;
         }
 
-        /// <summary>
-        /// Gets the number of times the search was queried.
-        /// </summary>
+        /// <summary>Gets the number of times the search was queried.</summary>
         public int CallCount { get; private set; }
 
         /// <inheritdoc/>
@@ -292,13 +257,11 @@ public class AuthorResolverTests
                 throw await CreateApiExceptionAsync().ConfigureAwait(false);
             }
 
-            _responses.TryGetValue(email, out var login);
+            _ = _responses.TryGetValue(email, out var login);
             return login;
         }
 
-        /// <summary>
-        /// Builds a Refit <see cref="ApiException"/> equivalent to a failed search-users call.
-        /// </summary>
+        /// <summary>Builds a Refit <see cref="ApiException"/> equivalent to a failed search-users call.</summary>
         /// <returns>The constructed exception.</returns>
         private static async Task<ApiException> CreateApiExceptionAsync()
         {

@@ -4,9 +4,7 @@
 
 namespace GitReleaseNoteGenerator.Commands;
 
-/// <summary>
-/// Contains validated and resolved command arguments.
-/// </summary>
+/// <summary>Contains validated and resolved command arguments.</summary>
 /// <param name="Token">The GitHub token.</param>
 /// <param name="Owner">The repository owner.</param>
 /// <param name="Repo">The repository name.</param>

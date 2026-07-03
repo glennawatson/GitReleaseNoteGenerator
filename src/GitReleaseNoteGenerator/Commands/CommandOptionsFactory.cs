@@ -6,19 +6,13 @@ using System.CommandLine;
 
 namespace GitReleaseNoteGenerator.Commands;
 
-/// <summary>
-/// Builds the <see cref="System.CommandLine"/> options and root command for the generate command.
-/// </summary>
+/// <summary>Builds the <see cref="System.CommandLine"/> options and root command for the generate command.</summary>
 internal static class CommandOptionsFactory
 {
-    /// <summary>
-    /// The default GitHub Actions output variable name.
-    /// </summary>
+    /// <summary>The default GitHub Actions output variable name.</summary>
     internal const string DefaultOutputName = "changelog";
 
-    /// <summary>
-    /// Creates the options accepted by the generate command.
-    /// </summary>
+    /// <summary>Creates the options accepted by the generate command.</summary>
     /// <returns>The configured options.</returns>
     public static GenerateCommandOptions CreateOptions()
     {
@@ -81,9 +75,7 @@ internal static class CommandOptionsFactory
             outputNameOption);
     }
 
-    /// <summary>
-    /// Creates the root command populated with the supplied options.
-    /// </summary>
+    /// <summary>Creates the root command populated with the supplied options.</summary>
     /// <param name="options">The options to attach to the command.</param>
     /// <returns>The configured root command.</returns>
     public static RootCommand CreateRootCommand(GenerateCommandOptions options)

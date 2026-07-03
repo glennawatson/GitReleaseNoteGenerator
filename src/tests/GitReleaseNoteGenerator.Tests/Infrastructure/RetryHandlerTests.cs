@@ -16,14 +16,11 @@ using Refit;
 
 namespace GitReleaseNoteGenerator.Tests.Infrastructure;
 
-/// <summary>
-/// Tests for <see cref="RetryHandler"/>.
-/// </summary>
+/// <summary>Tests for <see cref="RetryHandler"/>.</summary>
 public class RetryHandlerTests
 {
-    /// <summary>
-    /// Tests that the pipeline runs a successful operation and returns its result.
-    /// </summary>
+    /// <summary>Tests that the pipeline runs a successful operation and returns its result.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CreatePipeline_WithSuccessfulOperation_ReturnsResult()
     {
@@ -38,10 +35,8 @@ public class RetryHandlerTests
         await Assert.That(result).IsEqualTo("ok");
     }
 
-    /// <summary>
-    /// Tests that the pipeline retries a transient failure and then succeeds, exercising the
-    /// retry/backoff path.
-    /// </summary>
+    /// <summary>Tests that the pipeline retries a transient failure and then succeeds, exercising the retry/backoff path.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CreatePipeline_WithTransientFailure_RetriesThenSucceeds()
     {
@@ -64,9 +59,8 @@ public class RetryHandlerTests
         await Assert.That(result).IsEqualTo(succeedOnAttempt);
     }
 
-    /// <summary>
-    /// Tests that a primary rate-limit response whose reset is in the future yields a positive delay.
-    /// </summary>
+    /// <summary>Tests that a primary rate-limit response whose reset is in the future yields a positive delay.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CalculateRateLimitDelay_WithFutureReset_ReturnsPositiveDelay()
     {
@@ -79,9 +73,8 @@ public class RetryHandlerTests
         await Assert.That(delay!.Value > TimeSpan.Zero).IsTrue();
     }
 
-    /// <summary>
-    /// Tests that a primary rate-limit response whose reset is in the past yields no delay.
-    /// </summary>
+    /// <summary>Tests that a primary rate-limit response whose reset is in the past yields no delay.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CalculateRateLimitDelay_WithPastReset_ReturnsNull()
     {
@@ -93,9 +86,8 @@ public class RetryHandlerTests
         await Assert.That(delay).IsNull();
     }
 
-    /// <summary>
-    /// Tests that a non-rate-limit exception yields no rate-limit delay.
-    /// </summary>
+    /// <summary>Tests that a non-rate-limit exception yields no rate-limit delay.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CalculateRateLimitDelay_WithNonRateLimitException_ReturnsNull()
     {
@@ -108,6 +100,7 @@ public class RetryHandlerTests
     /// Tests that an abuse/secondary rate-limit response carrying a "Retry-After" hint yields a
     /// delay at least as long as the requested wait.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CalculateRateLimitDelay_WithRetryAfter_HonorsRetryAfter()
     {
@@ -124,6 +117,7 @@ public class RetryHandlerTests
     /// Tests that a rate-limit response with no reset or retry hint yields no explicit delay, so the
     /// pipeline falls back to its exponential backoff.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CalculateRateLimitDelay_WithNoHint_ReturnsNull()
     {
@@ -134,10 +128,7 @@ public class RetryHandlerTests
         await Assert.That(delay).IsNull();
     }
 
-    /// <summary>
-    /// Creates a Refit <see cref="ApiException"/> for a primary rate limit whose window resets at
-    /// the given epoch.
-    /// </summary>
+    /// <summary>Creates a Refit <see cref="ApiException"/> for a primary rate limit whose window resets at the given epoch.</summary>
     /// <param name="resetEpochSeconds">The reset time as UTC epoch seconds.</param>
     /// <returns>The constructed exception.</returns>
     private static Task<ApiException> CreateRateLimitExceptionAsync(long resetEpochSeconds) =>
@@ -147,18 +138,14 @@ public class RetryHandlerTests
             headers.Add("x-ratelimit-reset", resetEpochSeconds.ToString(CultureInfo.InvariantCulture));
         });
 
-    /// <summary>
-    /// Creates a Refit <see cref="ApiException"/> carrying a "Retry-After" header hint.
-    /// </summary>
+    /// <summary>Creates a Refit <see cref="ApiException"/> carrying a "Retry-After" header hint.</summary>
     /// <param name="retryAfterSeconds">The requested wait, in seconds.</param>
     /// <returns>The constructed exception.</returns>
     private static Task<ApiException> CreateRetryAfterExceptionAsync(int retryAfterSeconds) =>
         CreateApiExceptionAsync(HttpStatusCode.Forbidden, headers =>
             headers.Add("Retry-After", retryAfterSeconds.ToString(CultureInfo.InvariantCulture)));
 
-    /// <summary>
-    /// Creates a Refit <see cref="ApiException"/> for the given status with configured headers.
-    /// </summary>
+    /// <summary>Creates a Refit <see cref="ApiException"/> for the given status with configured headers.</summary>
     /// <param name="status">The response status code.</param>
     /// <param name="configureHeaders">Applies the response headers.</param>
     /// <returns>The constructed exception.</returns>
@@ -170,9 +157,7 @@ public class RetryHandlerTests
         return await ApiException.Create(request, HttpMethod.Get, response, new RefitSettings()).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// A fixed-time <see cref="TimeProvider"/> for deterministic delay calculations.
-    /// </summary>
+    /// <summary>A fixed-time <see cref="TimeProvider"/> for deterministic delay calculations.</summary>
     /// <param name="now">The instant to report from <see cref="GetUtcNow"/>.</param>
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

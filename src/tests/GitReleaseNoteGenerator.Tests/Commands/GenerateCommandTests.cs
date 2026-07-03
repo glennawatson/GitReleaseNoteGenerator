@@ -19,46 +19,30 @@ namespace GitReleaseNoteGenerator.Tests.Commands;
 [NotInParallel]
 public class GenerateCommandTests
 {
-    /// <summary>
-    /// The --token option name.
-    /// </summary>
+    /// <summary>The --token option name.</summary>
     private const string TokenArg = "--token";
 
-    /// <summary>
-    /// The --owner option name.
-    /// </summary>
+    /// <summary>The --owner option name.</summary>
     private const string OwnerArg = "--owner";
 
-    /// <summary>
-    /// The --repo option name.
-    /// </summary>
+    /// <summary>The --repo option name.</summary>
     private const string RepoArg = "--repo";
 
-    /// <summary>
-    /// The token argument value.
-    /// </summary>
+    /// <summary>The token argument value.</summary>
     private const string Token = "ghp_example";
 
-    /// <summary>
-    /// The owner argument value.
-    /// </summary>
+    /// <summary>The owner argument value.</summary>
     private const string Owner = "owner";
 
-    /// <summary>
-    /// The repository argument value.
-    /// </summary>
+    /// <summary>The repository argument value.</summary>
     private const string Repo = "repo";
 
-    /// <summary>
-    /// A repository payload whose default branch is "main".
-    /// </summary>
+    /// <summary>A repository payload whose default branch is "main".</summary>
     private const string RepoJson = """
         { "id": 1, "name": "repo", "full_name": "owner/repo", "default_branch": "main", "owner": { "login": "owner", "id": 1 } }
         """;
 
-    /// <summary>
-    /// A single feature commit authored by login "janedev".
-    /// </summary>
+    /// <summary>A single feature commit authored by login "janedev".</summary>
     private const string CommitJson = """
         {
           "sha": "abc1234",
@@ -73,9 +57,8 @@ public class GenerateCommandTests
         }
         """;
 
-    /// <summary>
-    /// Tests that a missing token sets a non-zero exit code.
-    /// </summary>
+    /// <summary>Tests that a missing token sets a non-zero exit code.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WithMissingToken_Exits()
     {
@@ -84,9 +67,8 @@ public class GenerateCommandTests
         await Assert.That(exitCode).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that a missing repository (token present) sets a non-zero exit code.
-    /// </summary>
+    /// <summary>Tests that a missing repository (token present) sets a non-zero exit code.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WithMissingRepository_Exits()
     {
@@ -95,9 +77,8 @@ public class GenerateCommandTests
         await Assert.That(exitCode).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that a missing release version (token and repository present) sets a non-zero exit code.
-    /// </summary>
+    /// <summary>Tests that a missing release version (token and repository present) sets a non-zero exit code.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WithMissingVersion_Exits()
     {
@@ -106,9 +87,8 @@ public class GenerateCommandTests
         await Assert.That(exitCode).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests the full happy path: a valid invocation writes release notes to the output file.
-    /// </summary>
+    /// <summary>Tests the full happy path: a valid invocation writes release notes to the output file.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WithValidArguments_WritesReleaseNotes()
     {
@@ -137,9 +117,8 @@ public class GenerateCommandTests
         }
     }
 
-    /// <summary>
-    /// Tests that the happy path also writes to the GITHUB_OUTPUT file when requested.
-    /// </summary>
+    /// <summary>Tests that the happy path also writes to the GITHUB_OUTPUT file when requested.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WithGitHubOutput_WritesToOutputFile()
     {
@@ -172,9 +151,8 @@ public class GenerateCommandTests
         }
     }
 
-    /// <summary>
-    /// Tests that an API failure is caught and surfaced as a non-zero exit code.
-    /// </summary>
+    /// <summary>Tests that an API failure is caught and surfaced as a non-zero exit code.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Invoke_WhenApiFails_Exits()
     {
@@ -189,9 +167,7 @@ public class GenerateCommandTests
         await Assert.That(exitCode).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Builds a fake handler that serves the no-release (all-history) happy path with one commit.
-    /// </summary>
+    /// <summary>Builds a fake handler that serves the no-release (all-history) happy path with one commit.</summary>
     /// <returns>The configured fake handler.</returns>
     private static FakeHttpMessageHandler HappyPathHandler() =>
         new(req =>
@@ -217,9 +193,7 @@ public class GenerateCommandTests
             return (HttpStatusCode.OK, "[]");
         });
 
-    /// <summary>
-    /// Determines whether a request query targets a page beyond the first.
-    /// </summary>
+    /// <summary>Determines whether a request query targets a page beyond the first.</summary>
     /// <param name="query">The request query string (including the leading '?').</param>
     /// <returns>True if a "page" parameter greater than 1 is requested; otherwise, false.</returns>
     private static bool IsBeyondFirstPage(string query)

@@ -4,8 +4,6 @@
 
 namespace GitReleaseNoteGenerator.Models;
 
-/// <summary>
-/// The subset of a GitHub repository payload used to resolve the default comparison head.
-/// </summary>
+/// <summary>The subset of a GitHub repository payload used to resolve the default comparison head.</summary>
 /// <param name="DefaultBranch">The repository's default branch name, or null.</param>
 public sealed record GitHubRepository(string? DefaultBranch);

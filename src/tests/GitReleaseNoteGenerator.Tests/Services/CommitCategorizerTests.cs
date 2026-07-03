@@ -7,19 +7,14 @@ using GitReleaseNoteGenerator.Services;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="CommitCategorizer"/>.
-/// </summary>
+/// <summary>Tests for <see cref="CommitCategorizer"/>.</summary>
 public class CommitCategorizerTests
 {
-    /// <summary>
-    /// The Features category name.
-    /// </summary>
+    /// <summary>The Features category name.</summary>
     private const string FeaturesCategory = "Features";
 
-    /// <summary>
-    /// Tests that a feat-prefixed commit is categorized as Features.
-    /// </summary>
+    /// <summary>Tests that a feat-prefixed commit is categorized as Features.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithFeatPrefix_ReturnsFeatures()
     {
@@ -30,9 +25,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo(FeaturesCategory);
     }
 
-    /// <summary>
-    /// Tests that a fix-prefixed commit is categorized as Fixes.
-    /// </summary>
+    /// <summary>Tests that a fix-prefixed commit is categorized as Fixes.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithFixPrefix_ReturnsFixes()
     {
@@ -43,9 +37,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Fixes");
     }
 
-    /// <summary>
-    /// Tests that a commit with no matching prefix is categorized as Other.
-    /// </summary>
+    /// <summary>Tests that a commit with no matching prefix is categorized as Other.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithNoPrefix_ReturnsOther()
     {
@@ -56,9 +49,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Other");
     }
 
-    /// <summary>
-    /// Tests that dependabot commits are categorized as Dependencies.
-    /// </summary>
+    /// <summary>Tests that dependabot commits are categorized as Dependencies.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithDependabotLogin_ReturnsDependencies()
     {
@@ -69,9 +61,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Dependencies");
     }
 
-    /// <summary>
-    /// Tests that renovate bot commits are categorized as Dependencies.
-    /// </summary>
+    /// <summary>Tests that renovate bot commits are categorized as Dependencies.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithRenovateLogin_ReturnsDependencies()
     {
@@ -82,9 +73,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Dependencies");
     }
 
-    /// <summary>
-    /// Tests that a scoped conventional commit is categorized by its type.
-    /// </summary>
+    /// <summary>Tests that a scoped conventional commit is categorized by its type.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithScope_ReturnsTypeCategory()
     {
@@ -95,9 +85,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo(FeaturesCategory);
     }
 
-    /// <summary>
-    /// Tests that a "!" breaking marker promotes the commit to Breaking Changes.
-    /// </summary>
+    /// <summary>Tests that a "!" breaking marker promotes the commit to Breaking Changes.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithBreakingBang_ReturnsBreakingChanges()
     {
@@ -108,9 +97,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Breaking Changes");
     }
 
-    /// <summary>
-    /// Tests that a scoped "!" breaking marker promotes the commit to Breaking Changes.
-    /// </summary>
+    /// <summary>Tests that a scoped "!" breaking marker promotes the commit to Breaking Changes.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithScopedBreakingBang_ReturnsBreakingChanges()
     {
@@ -121,9 +109,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Breaking Changes");
     }
 
-    /// <summary>
-    /// Tests that a BREAKING CHANGE footer promotes the commit to Breaking Changes.
-    /// </summary>
+    /// <summary>Tests that a BREAKING CHANGE footer promotes the commit to Breaking Changes.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithBreakingChangeFooter_ReturnsBreakingChanges()
     {
@@ -134,9 +121,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Breaking Changes");
     }
 
-    /// <summary>
-    /// Tests that the conventional "ci" type is recognized.
-    /// </summary>
+    /// <summary>Tests that the conventional "ci" type is recognized.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithCiType_ReturnsGeneralChanges()
     {
@@ -147,9 +133,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("General Changes");
     }
 
-    /// <summary>
-    /// Tests that the conventional "revert" type is recognized.
-    /// </summary>
+    /// <summary>Tests that the conventional "revert" type is recognized.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithRevertType_ReturnsGeneralChanges()
     {
@@ -164,6 +149,7 @@ public class CommitCategorizerTests
     /// Tests that a non-conventional message that merely starts with a type word is not
     /// misclassified (no colon means it is not a conventional commit).
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithNonConventionalFixWord_ReturnsOther()
     {
@@ -174,9 +160,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Other");
     }
 
-    /// <summary>
-    /// Tests that a conventional commit with an unrecognized type falls back to Other.
-    /// </summary>
+    /// <summary>Tests that a conventional commit with an unrecognized type falls back to Other.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CategorizeCommit_WithUnknownType_ReturnsOther()
     {
@@ -187,9 +172,8 @@ public class CommitCategorizerTests
         await Assert.That(category).IsEqualTo("Other");
     }
 
-    /// <summary>
-    /// Tests that GroupByCategory returns commits grouped by priority order.
-    /// </summary>
+    /// <summary>Tests that GroupByCategory returns commits grouped by priority order.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GroupByCategory_ReturnsGroupedByPriority()
     {
@@ -210,9 +194,8 @@ public class CommitCategorizerTests
         await Assert.That(grouped[FeaturesCategory]).Count().IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that GetEmoji returns the correct emoji for known categories.
-    /// </summary>
+    /// <summary>Tests that GetEmoji returns the correct emoji for known categories.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetEmoji_WithKnownCategory_ReturnsEmoji()
     {
@@ -221,9 +204,8 @@ public class CommitCategorizerTests
         await Assert.That(emoji).IsEqualTo("\u2728");
     }
 
-    /// <summary>
-    /// Tests that GetEmoji returns a fallback for unknown categories.
-    /// </summary>
+    /// <summary>Tests that GetEmoji returns a fallback for unknown categories.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetEmoji_WithUnknownCategory_ReturnsFallback()
     {
@@ -232,9 +214,7 @@ public class CommitCategorizerTests
         await Assert.That(emoji).IsEqualTo("\U0001f539");
     }
 
-    /// <summary>
-    /// Creates a test <see cref="GitHubCommit"/> with the specified message and optional author login.
-    /// </summary>
+    /// <summary>Creates a test <see cref="GitHubCommit"/> with the specified message and optional author login.</summary>
     /// <param name="message">The commit message.</param>
     /// <param name="authorLogin">The GitHub login of the author, or null.</param>
     /// <returns>A configured <see cref="GitHubCommit"/> for testing.</returns>

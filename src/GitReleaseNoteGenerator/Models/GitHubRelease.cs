@@ -4,8 +4,6 @@
 
 namespace GitReleaseNoteGenerator.Models;
 
-/// <summary>
-/// The subset of a GitHub release payload used to resolve the base ref for comparison.
-/// </summary>
+/// <summary>The subset of a GitHub release payload used to resolve the base ref for comparison.</summary>
 /// <param name="TagName">The tag name the release points at, or null.</param>
 public sealed record GitHubRelease(string? TagName);

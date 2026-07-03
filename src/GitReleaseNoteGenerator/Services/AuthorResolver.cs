@@ -19,14 +19,10 @@ namespace GitReleaseNoteGenerator.Services;
 /// </summary>
 public sealed partial class AuthorResolver
 {
-    /// <summary>
-    /// The seam used to look up GitHub logins from email addresses.
-    /// </summary>
+    /// <summary>The seam used to look up GitHub logins from email addresses.</summary>
     private readonly IUserLoginSearch _userSearch;
 
-    /// <summary>
-    /// The logger for diagnostic messages.
-    /// </summary>
+    /// <summary>The logger for diagnostic messages.</summary>
     private readonly ILogger _logger;
 
     /// <summary>
@@ -35,10 +31,7 @@ public sealed partial class AuthorResolver
     /// </summary>
     private readonly Dictionary<string, string?> _emailToLoginCache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AuthorResolver"/> class backed by the
-    /// GitHub API.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="AuthorResolver"/> class backed by the GitHub API.</summary>
     /// <param name="api">An authenticated GitHub API client.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
     public AuthorResolver(IGitHubApi api, ILogger logger)
@@ -46,10 +39,7 @@ public sealed partial class AuthorResolver
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AuthorResolver"/> class with an explicit
-    /// login-search seam. Intended for testing.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="AuthorResolver"/> class with an explicit login-search seam. Intended for testing.</summary>
     /// <param name="userSearch">The login-search implementation.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
     internal AuthorResolver(IUserLoginSearch userSearch, ILogger logger)
@@ -87,7 +77,7 @@ public sealed partial class AuthorResolver
         var authors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var contributor in AuthorExtractor.GetContributors(commit))
         {
-            authors.Add(await ResolveAsync(contributor, allowSearch).ConfigureAwait(false));
+            _ = authors.Add(await ResolveAsync(contributor, allowSearch).ConfigureAwait(false));
         }
 
         return authors;

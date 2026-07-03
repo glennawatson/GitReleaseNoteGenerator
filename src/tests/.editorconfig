@@ -1,5 +1,15 @@
-# Test project overrides
+#############################################
+# Test projects (TUnit)
+#############################################
+# TUnit instantiates test classes per test, so they must remain instance classes and
+# cannot be marked static — even when a partial declaration happens to hold only static
+# members (the instance [Test] methods live in sibling partial files).
 [*.cs]
-dotnet_diagnostic.CA1707.severity = none             # Allow underscores in test method names
-dotnet_diagnostic.SA1615.severity = none             # Don't require return value docs on test methods
-dotnet_diagnostic.CA1812.severity = none             # Test classes are instantiated by the framework
+stylesharp.avoid_linq_on_hot_path = false
+dotnet_diagnostic.SST2229.severity = error # In tests, simplify LINQ Where plus terminal calls instead of banning LINQ
+dotnet_diagnostic.SST2230.severity = error # In tests, simplify LINQ type filters instead of banning LINQ
+dotnet_diagnostic.SST2233.severity = none # Tests can use LINQ for clarity
+dotnet_diagnostic.SST1432.severity = none
+dotnet_diagnostic.RCS1072.severity = none # covered by SST1435
+dotnet_diagnostic.RCS1106.severity = none # covered by SST1434
+dotnet_diagnostic.CA1707.severity = none # Test names use MethodName_Scenario_ExpectedResult (underscores) per this repo's convention

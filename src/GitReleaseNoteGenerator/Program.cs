@@ -6,14 +6,10 @@ using GitReleaseNoteGenerator.Commands;
 
 namespace GitReleaseNoteGenerator;
 
-/// <summary>
-/// Entry point for the git-release-notes CLI tool.
-/// </summary>
+/// <summary>Entry point for the git-release-notes CLI tool.</summary>
 internal static class Program
 {
-    /// <summary>
-    /// Main entry point.
-    /// </summary>
+    /// <summary>Main entry point.</summary>
     /// <param name="args">Command-line arguments.</param>
     /// <returns>The exit code.</returns>
     public static Task<int> Main(string[] args)

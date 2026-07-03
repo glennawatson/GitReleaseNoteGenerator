@@ -11,15 +11,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="GitHubUserLoginSearch"/>, driving the live search-users API path
-/// through a fake HTTP handler.
-/// </summary>
+/// <summary>Tests for <see cref="GitHubUserLoginSearch"/>, driving the live search-users API path through a fake HTTP handler.</summary>
 public class GitHubUserLoginSearchTests
 {
-    /// <summary>
-    /// Tests that a matching search result yields the user's login.
-    /// </summary>
+    /// <summary>Tests that a matching search result yields the user's login.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FindLoginByEmailAsync_WithMatch_ReturnsLogin()
     {
@@ -34,9 +30,8 @@ public class GitHubUserLoginSearchTests
         await Assert.That(login).IsEqualTo("glennawatson");
     }
 
-    /// <summary>
-    /// Tests that an empty search result yields null.
-    /// </summary>
+    /// <summary>Tests that an empty search result yields null.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task FindLoginByEmailAsync_WithNoMatch_ReturnsNull()
     {

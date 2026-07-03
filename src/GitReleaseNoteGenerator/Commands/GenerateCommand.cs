@@ -25,9 +25,7 @@ internal static partial class GenerateCommand
     /// </summary>
     internal static Func<string, IGitHubApi> ClientFactory { get; set; } = GitHubClientFactory.Create;
 
-    /// <summary>
-    /// Creates the root command with all options and its execution action.
-    /// </summary>
+    /// <summary>Creates the root command with all options and its execution action.</summary>
     /// <returns>The configured root command.</returns>
     public static RootCommand Create()
     {
@@ -39,9 +37,7 @@ internal static partial class GenerateCommand
         return rootCommand;
     }
 
-    /// <summary>
-    /// Executes release note generation for parsed command-line input.
-    /// </summary>
+    /// <summary>Executes release note generation for parsed command-line input.</summary>
     /// <param name="parseResult">The parse result from the command-line invocation.</param>
     /// <param name="options">The configured command options.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
@@ -76,17 +72,13 @@ internal static partial class GenerateCommand
         }
     }
 
-    /// <summary>
-    /// Creates the logger factory used by command execution.
-    /// </summary>
+    /// <summary>Creates the logger factory used by command execution.</summary>
     /// <returns>The configured logger factory.</returns>
     private static ILoggerFactory CreateLoggerFactory() =>
         LoggerFactory.Create(builder =>
             builder.AddConsole().SetMinimumLevel(LogLevel.Information));
 
-    /// <summary>
-    /// Writes a summary of the command values to the console.
-    /// </summary>
+    /// <summary>Writes a summary of the command values to the console.</summary>
     /// <param name="values">The command values to summarize.</param>
     private static void WriteCommandSummary(GenerateCommandValues values)
     {
@@ -97,9 +89,7 @@ internal static partial class GenerateCommand
         Console.WriteLine($"Output file: {values.OutputFile?.FullName ?? "(none)"}");
     }
 
-    /// <summary>
-    /// Validates required command values and resolves values that can be inferred.
-    /// </summary>
+    /// <summary>Validates required command values and resolves values that can be inferred.</summary>
     /// <param name="values">The raw command values.</param>
     /// <param name="logger">The logger instance.</param>
     /// <returns>The resolved command arguments, or <see langword="null"/> when validation fails.</returns>
@@ -115,9 +105,7 @@ internal static partial class GenerateCommand
         return CommandArgumentResolver.CreateArguments(values);
     }
 
-    /// <summary>
-    /// Reports a validation failure to the log and standard error and sets the process exit code.
-    /// </summary>
+    /// <summary>Reports a validation failure to the log and standard error and sets the process exit code.</summary>
     /// <param name="status">The validation failure status.</param>
     /// <param name="logger">The logger instance.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
@@ -150,9 +138,7 @@ internal static partial class GenerateCommand
         Environment.ExitCode = 1;
     }
 
-    /// <summary>
-    /// Generates release notes using the resolved command arguments.
-    /// </summary>
+    /// <summary>Generates release notes using the resolved command arguments.</summary>
     /// <param name="arguments">The resolved command arguments.</param>
     /// <param name="logger">The logger instance.</param>
     /// <returns>The generated release notes.</returns>
@@ -170,9 +156,7 @@ internal static partial class GenerateCommand
         return releaseNotes;
     }
 
-    /// <summary>
-    /// Writes generated release notes to the configured outputs.
-    /// </summary>
+    /// <summary>Writes generated release notes to the configured outputs.</summary>
     /// <param name="releaseNotes">The generated release notes.</param>
     /// <param name="arguments">The resolved command arguments.</param>
     /// <param name="logger">The logger instance.</param>

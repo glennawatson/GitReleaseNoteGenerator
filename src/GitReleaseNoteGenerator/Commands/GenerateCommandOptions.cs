@@ -6,9 +6,7 @@ using System.CommandLine;
 
 namespace GitReleaseNoteGenerator.Commands;
 
-/// <summary>
-/// Contains the options accepted by the generate command.
-/// </summary>
+/// <summary>Contains the options accepted by the generate command.</summary>
 /// <param name="TokenOption">The option for the GitHub token.</param>
 /// <param name="OwnerOption">The option for the repository owner.</param>
 /// <param name="RepoOption">The option for the repository name.</param>

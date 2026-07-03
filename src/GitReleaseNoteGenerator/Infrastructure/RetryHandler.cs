@@ -20,32 +20,22 @@ namespace GitReleaseNoteGenerator.Infrastructure;
 /// </summary>
 public static partial class RetryHandler
 {
-    /// <summary>
-    /// The maximum number of retry attempts before giving up.
-    /// </summary>
+    /// <summary>The maximum number of retry attempts before giving up.</summary>
     private const int MaxRetries = 3;
 
-    /// <summary>
-    /// The GitHub header carrying the number of requests remaining in the current rate-limit window.
-    /// </summary>
+    /// <summary>The GitHub header carrying the number of requests remaining in the current rate-limit window.</summary>
     private const string RateLimitRemainingHeader = "x-ratelimit-remaining";
 
-    /// <summary>
-    /// The GitHub header carrying the UTC epoch second at which the rate-limit window resets.
-    /// </summary>
+    /// <summary>The GitHub header carrying the UTC epoch second at which the rate-limit window resets.</summary>
     private const string RateLimitResetHeader = "x-ratelimit-reset";
 
-    /// <summary>
-    /// Creates a resilience pipeline for GitHub API calls with exponential backoff.
-    /// </summary>
+    /// <summary>Creates a resilience pipeline for GitHub API calls with exponential backoff.</summary>
     /// <param name="logger">Logger for retry event information.</param>
     /// <returns>A configured resilience pipeline.</returns>
     public static ResiliencePipeline CreatePipeline(ILogger logger) =>
         CreatePipeline(logger, TimeProvider.System);
 
-    /// <summary>
-    /// Creates a resilience pipeline for GitHub API calls with exponential backoff.
-    /// </summary>
+    /// <summary>Creates a resilience pipeline for GitHub API calls with exponential backoff.</summary>
     /// <param name="logger">Logger for retry event information.</param>
     /// <param name="timeProvider">The time provider used to calculate rate limit reset delays.</param>
     /// <returns>A configured resilience pipeline.</returns>
@@ -123,26 +113,24 @@ public static partial class RetryHandler
         && TryGetHeaderValue(exception.Headers, RateLimitRemainingHeader, out var remaining)
         && remaining == "0";
 
-    /// <summary>
-    /// Gets the <c>Retry-After</c> delay hint from an API failure, if present.
-    /// </summary>
+    /// <summary>Gets the <c>Retry-After</c> delay hint from an API failure, if present.</summary>
     /// <param name="exception">The API exception to inspect.</param>
     /// <returns>The requested wait, or <see cref="TimeSpan.Zero"/> when none was supplied.</returns>
     private static TimeSpan GetRetryAfter(ApiException exception) =>
         exception.Headers?.RetryAfter?.Delta ?? TimeSpan.Zero;
 
-    /// <summary>
-    /// Reads the first value of a response header, if the header is present.
-    /// </summary>
+    /// <summary>Reads the first value of a response header, if the header is present.</summary>
     /// <param name="headers">The response headers to read from, or null.</param>
     /// <param name="name">The header name.</param>
     /// <param name="value">The first header value, or null when the header is absent.</param>
     /// <returns>True when the header was present; otherwise, false.</returns>
     private static bool TryGetHeaderValue(HttpResponseHeaders? headers, string name, out string? value)
     {
-        if (headers is not null && headers.TryGetValues(name, out var values))
+        if (headers is not null
+            && headers.TryGetValues(name, out var values)
+            && values is IReadOnlyList<string> { Count: > 0 } list)
         {
-            value = values.FirstOrDefault();
+            value = list[0];
             return value is not null;
         }
 

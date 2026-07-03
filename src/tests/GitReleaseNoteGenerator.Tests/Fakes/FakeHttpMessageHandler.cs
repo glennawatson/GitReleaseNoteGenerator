@@ -13,21 +13,15 @@ namespace GitReleaseNoteGenerator.Tests.Fakes;
 /// </summary>
 internal sealed class FakeHttpMessageHandler : HttpMessageHandler
 {
-    /// <summary>
-    /// Produces the (status, JSON body) to return for a given request.
-    /// </summary>
+    /// <summary>Produces the (status, JSON body) to return for a given request.</summary>
     private readonly Func<HttpRequestMessage, (HttpStatusCode Status, string Json)> _responder;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FakeHttpMessageHandler"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="FakeHttpMessageHandler"/> class.</summary>
     /// <param name="responder">Maps a request to the response status and JSON body to return.</param>
     public FakeHttpMessageHandler(Func<HttpRequestMessage, (HttpStatusCode Status, string Json)> responder) =>
         _responder = responder;
 
-    /// <summary>
-    /// Gets the requests that have been handled, in order.
-    /// </summary>
+    /// <summary>Gets the requests that have been handled, in order.</summary>
     public List<HttpRequestMessage> Requests { get; } = [];
 
     /// <inheritdoc/>

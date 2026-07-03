@@ -4,8 +4,6 @@
 
 namespace GitReleaseNoteGenerator.Models;
 
-/// <summary>
-/// The result of the GitHub "search users" API, carrying the matched accounts.
-/// </summary>
+/// <summary>The result of the GitHub "search users" API, carrying the matched accounts.</summary>
 /// <param name="Items">The matched GitHub accounts, most relevant first, or null.</param>
 public sealed record GitHubUserSearchResult(IReadOnlyList<GitHubUser>? Items);

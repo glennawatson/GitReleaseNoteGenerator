@@ -6,10 +6,7 @@ using GitReleaseNoteGenerator.Models;
 
 namespace GitReleaseNoteGenerator.Services;
 
-/// <summary>
-/// Extracts and normalizes author information from GitHub commits,
-/// including co-authors from commit message trailers.
-/// </summary>
+/// <summary>Extracts and normalizes author information from GitHub commits, including co-authors from commit message trailers.</summary>
 public static class AuthorExtractor
 {
     /// <summary>
@@ -18,14 +15,10 @@ public static class AuthorExtractor
     /// </summary>
     private const string NoReplySuffix = "@users.noreply.github.com";
 
-    /// <summary>
-    /// The trailer key (case-insensitive) that identifies a co-author line in a commit message.
-    /// </summary>
+    /// <summary>The trailer key (case-insensitive) that identifies a co-author line in a commit message.</summary>
     private const string CoAuthorPrefix = "Co-authored-by:";
 
-    /// <summary>
-    /// Line separator strings used to split commit messages into individual lines.
-    /// </summary>
+    /// <summary>Line separator strings used to split commit messages into individual lines.</summary>
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
     /// <summary>
@@ -43,7 +36,7 @@ public static class AuthorExtractor
         var authors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var contributor in GetContributors(commit))
         {
-            authors.Add(ResolveLocally(contributor));
+            _ = authors.Add(ResolveLocally(contributor));
         }
 
         return authors;
@@ -78,12 +71,7 @@ public static class AuthorExtractor
     {
         ArgumentNullException.ThrowIfNull(contributor);
 
-        if (!string.IsNullOrWhiteSpace(contributor.Login))
-        {
-            return contributor.Login;
-        }
-
-        return TryGetLoginFromNoReplyEmail(contributor.Email)
+        return !string.IsNullOrWhiteSpace(contributor.Login) ? contributor.Login : TryGetLoginFromNoReplyEmail(contributor.Email)
             ?? NormalizeAuthorName(contributor.Name ?? string.Empty);
     }
 
@@ -117,9 +105,7 @@ public static class AuthorExtractor
         return string.IsNullOrWhiteSpace(localPart) ? null : localPart;
     }
 
-    /// <summary>
-    /// Normalizes an author string by removing the email portion and whitespace.
-    /// </summary>
+    /// <summary>Normalizes an author string by removing the email portion and whitespace.</summary>
     /// <param name="author">The raw author string (login, name, or "Name &lt;email&gt;").</param>
     /// <returns>A normalized identifier.</returns>
     public static string NormalizeAuthorName(string author)
@@ -139,9 +125,7 @@ public static class AuthorExtractor
         return string.IsNullOrEmpty(normalized) ? "unknown" : normalized;
     }
 
-    /// <summary>
-    /// Determines whether the given author identifier represents a bot account.
-    /// </summary>
+    /// <summary>Determines whether the given author identifier represents a bot account.</summary>
     /// <param name="author">The author identifier to check.</param>
     /// <returns>True if the author is a bot; otherwise, false.</returns>
     public static bool IsBot(string author)
@@ -151,9 +135,7 @@ public static class AuthorExtractor
         return author.Contains("[bot]", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Gets the primary contributor from the GitHub-resolved author or git commit metadata.
-    /// </summary>
+    /// <summary>Gets the primary contributor from the GitHub-resolved author or git commit metadata.</summary>
     /// <param name="commit">The GitHub commit to inspect.</param>
     /// <returns>The primary contributor candidate.</returns>
     private static CommitContributor GetPrimaryContributor(GitHubCommit commit) =>
@@ -162,9 +144,7 @@ public static class AuthorExtractor
             commit.Commit.Author?.Name ?? commit.Commit.Committer?.Name,
             commit.Commit.Author?.Email ?? commit.Commit.Committer?.Email);
 
-    /// <summary>
-    /// Gets co-author contributors from commit message trailer lines.
-    /// </summary>
+    /// <summary>Gets co-author contributors from commit message trailer lines.</summary>
     /// <param name="commitMessage">The commit message to inspect.</param>
     /// <returns>The co-author contributor candidates in message order.</returns>
     private static IEnumerable<CommitContributor> GetCoAuthors(string? commitMessage)
@@ -175,9 +155,7 @@ public static class AuthorExtractor
         }
     }
 
-    /// <summary>
-    /// Gets co-author trailer lines from a commit message.
-    /// </summary>
+    /// <summary>Gets co-author trailer lines from a commit message.</summary>
     /// <param name="commitMessage">The commit message to inspect.</param>
     /// <returns>The trimmed co-author trailer lines.</returns>
     private static IEnumerable<string> GetCoAuthorLines(string? commitMessage)
@@ -192,9 +170,7 @@ public static class AuthorExtractor
         }
     }
 
-    /// <summary>
-    /// Parses a raw "Co-authored-by:" value of the form "Name &lt;email&gt;" into a contributor.
-    /// </summary>
+    /// <summary>Parses a raw "Co-authored-by:" value of the form "Name &lt;email&gt;" into a contributor.</summary>
     /// <param name="value">The trailer value with the key already removed.</param>
     /// <returns>A contributor candidate carrying the parsed name and email.</returns>
     private static CommitContributor ParseCoAuthor(string value)

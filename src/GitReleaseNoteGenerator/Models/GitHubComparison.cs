@@ -4,8 +4,6 @@
 
 namespace GitReleaseNoteGenerator.Models;
 
-/// <summary>
-/// The result of the GitHub "compare two commits" API, carrying the commits between the refs.
-/// </summary>
+/// <summary>The result of the GitHub "compare two commits" API, carrying the commits between the refs.</summary>
 /// <param name="Commits">The commits contained in the comparison range, or null.</param>
 public sealed record GitHubComparison(IReadOnlyList<GitHubCommit>? Commits);

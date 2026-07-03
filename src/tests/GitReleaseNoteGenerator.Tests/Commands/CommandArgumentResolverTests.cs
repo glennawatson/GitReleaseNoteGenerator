@@ -6,14 +6,11 @@ using GitReleaseNoteGenerator.Commands;
 
 namespace GitReleaseNoteGenerator.Tests.Commands;
 
-/// <summary>
-/// Tests for <see cref="CommandArgumentResolver"/>.
-/// </summary>
+/// <summary>Tests for <see cref="CommandArgumentResolver"/>.</summary>
 public class CommandArgumentResolverTests
 {
-    /// <summary>
-    /// Tests that explicitly-provided options are read in preference to the environment.
-    /// </summary>
+    /// <summary>Tests that explicitly-provided options are read in preference to the environment.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task ReadValues_WithProvidedOptions_UsesParsedValues()
     {
@@ -29,9 +26,8 @@ public class CommandArgumentResolverTests
         await Assert.That(values.Version).IsEqualTo("9.9.9");
     }
 
-    /// <summary>
-    /// Tests that missing options fall back to the GitHub Actions environment.
-    /// </summary>
+    /// <summary>Tests that missing options fall back to the GitHub Actions environment.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     [NotInParallel]
     public async Task ReadValues_WhenOptionsAbsent_FallsBackToEnvironment()
@@ -58,9 +54,8 @@ public class CommandArgumentResolverTests
         }
     }
 
-    /// <summary>
-    /// Tests that a missing token is reported.
-    /// </summary>
+    /// <summary>Tests that a missing token is reported.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Validate_WithMissingToken_ReturnsTokenMissing()
     {
@@ -69,9 +64,8 @@ public class CommandArgumentResolverTests
         await Assert.That(status).IsEqualTo(CommandValidationStatus.TokenMissing);
     }
 
-    /// <summary>
-    /// Tests that a missing repository is reported when the token is present.
-    /// </summary>
+    /// <summary>Tests that a missing repository is reported when the token is present.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Validate_WithMissingRepo_ReturnsRepositoryMissing()
     {
@@ -80,9 +74,8 @@ public class CommandArgumentResolverTests
         await Assert.That(status).IsEqualTo(CommandValidationStatus.RepositoryMissing);
     }
 
-    /// <summary>
-    /// Tests that a missing version is reported when the token and repository are present.
-    /// </summary>
+    /// <summary>Tests that a missing version is reported when the token and repository are present.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Validate_WithMissingVersion_ReturnsVersionMissing()
     {
@@ -91,9 +84,8 @@ public class CommandArgumentResolverTests
         await Assert.That(status).IsEqualTo(CommandValidationStatus.VersionMissing);
     }
 
-    /// <summary>
-    /// Tests that complete values validate successfully.
-    /// </summary>
+    /// <summary>Tests that complete values validate successfully.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Validate_WithAllRequiredValues_ReturnsValid()
     {
@@ -102,9 +94,8 @@ public class CommandArgumentResolverTests
         await Assert.That(status).IsEqualTo(CommandValidationStatus.Valid);
     }
 
-    /// <summary>
-    /// Tests that values are mapped into arguments.
-    /// </summary>
+    /// <summary>Tests that values are mapped into arguments.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CreateArguments_MapsValues()
     {
@@ -122,9 +113,7 @@ public class CommandArgumentResolverTests
         await Assert.That(arguments.OutputName).IsEqualTo("out");
     }
 
-    /// <summary>
-    /// Creates command values with sensible defaults, overridable per test.
-    /// </summary>
+    /// <summary>Creates command values with sensible defaults, overridable per test.</summary>
     /// <param name="token">The token value.</param>
     /// <param name="owner">The owner value.</param>
     /// <param name="repo">The repository value.</param>

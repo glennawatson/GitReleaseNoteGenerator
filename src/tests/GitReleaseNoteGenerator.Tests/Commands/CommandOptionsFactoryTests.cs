@@ -6,14 +6,11 @@ using GitReleaseNoteGenerator.Commands;
 
 namespace GitReleaseNoteGenerator.Tests.Commands;
 
-/// <summary>
-/// Tests for <see cref="CommandOptionsFactory"/>.
-/// </summary>
+/// <summary>Tests for <see cref="CommandOptionsFactory"/>.</summary>
 public class CommandOptionsFactoryTests
 {
-    /// <summary>
-    /// Tests that the output-name option defaults to the changelog name.
-    /// </summary>
+    /// <summary>Tests that the output-name option defaults to the changelog name.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CreateRootCommand_AppliesOutputNameDefault()
     {
@@ -25,9 +22,8 @@ public class CommandOptionsFactoryTests
         await Assert.That(parseResult.GetValue(options.OutputNameOption)).IsEqualTo(CommandOptionsFactory.DefaultOutputName);
     }
 
-    /// <summary>
-    /// Tests that the root command parses the known options into their values.
-    /// </summary>
+    /// <summary>Tests that the root command parses the known options into their values.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task CreateRootCommand_ParsesProvidedOptions()
     {

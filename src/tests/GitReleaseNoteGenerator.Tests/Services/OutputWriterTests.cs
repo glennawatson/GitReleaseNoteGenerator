@@ -8,16 +8,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="OutputWriter"/>.
-/// These tests mutate the GITHUB_OUTPUT environment variable and must not run in parallel.
-/// </summary>
+/// <summary>Tests for <see cref="OutputWriter"/>. These tests mutate the GITHUB_OUTPUT environment variable and must not run in parallel.</summary>
 [NotInParallel]
 public class OutputWriterTests
 {
-    /// <summary>
-    /// Tests that WriteToFileAsync creates a file with the expected content.
-    /// </summary>
+    /// <summary>Tests that WriteToFileAsync creates a file with the expected content.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task WriteToFileAsync_CreatesFileWithContent()
     {
@@ -38,9 +34,8 @@ public class OutputWriterTests
         }
     }
 
-    /// <summary>
-    /// Tests that WriteToGitHubOutputAsync writes heredoc format to the output file.
-    /// </summary>
+    /// <summary>Tests that WriteToGitHubOutputAsync writes heredoc format to the output file.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task WriteToGitHubOutputAsync_WritesHeredocFormat()
     {
@@ -66,9 +61,8 @@ public class OutputWriterTests
         }
     }
 
-    /// <summary>
-    /// Tests that WriteToGitHubOutputAsync does nothing when GITHUB_OUTPUT is not set.
-    /// </summary>
+    /// <summary>Tests that WriteToGitHubOutputAsync does nothing when GITHUB_OUTPUT is not set.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task WriteToGitHubOutputAsync_WithNoEnvVar_DoesNothing()
     {
@@ -78,9 +72,7 @@ public class OutputWriterTests
         await OutputWriter.WriteToGitHubOutputAsync("content", "changelog", NullLogger.Instance);
     }
 
-    /// <summary>
-    /// Creates a unique temporary file path without using the insecure <c>Path.GetTempFileName()</c>.
-    /// </summary>
+    /// <summary>Creates a unique temporary file path without using the insecure <c>Path.GetTempFileName()</c>.</summary>
     /// <returns>A path to a not-yet-existing file in the temporary directory.</returns>
     private static string CreateTempFilePath() => Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 }

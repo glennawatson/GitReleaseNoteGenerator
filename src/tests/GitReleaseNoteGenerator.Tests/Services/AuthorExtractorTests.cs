@@ -7,24 +7,17 @@ using GitReleaseNoteGenerator.Services;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="AuthorExtractor"/>.
-/// </summary>
+/// <summary>Tests for <see cref="AuthorExtractor"/>.</summary>
 public class AuthorExtractorTests
 {
-    /// <summary>
-    /// A sample GitHub login used across the extraction tests.
-    /// </summary>
+    /// <summary>A sample GitHub login used across the extraction tests.</summary>
     private const string Octocat = "octocat";
 
-    /// <summary>
-    /// A sample GitHub login used to verify co-author de-duplication.
-    /// </summary>
+    /// <summary>A sample GitHub login used to verify co-author de-duplication.</summary>
     private const string GlennLogin = "glennawatson";
 
-    /// <summary>
-    /// Tests that the primary author login is extracted.
-    /// </summary>
+    /// <summary>Tests that the primary author login is extracted.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithAuthorLogin_ExtractsLogin()
     {
@@ -35,9 +28,8 @@ public class AuthorExtractorTests
         await Assert.That(authors).Contains(Octocat);
     }
 
-    /// <summary>
-    /// Tests fallback to committer name when no login is available.
-    /// </summary>
+    /// <summary>Tests fallback to committer name when no login is available.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithNoLogin_FallsBackToCommitAuthorName()
     {
@@ -48,9 +40,8 @@ public class AuthorExtractorTests
         await Assert.That(authors).Contains("JohnDoe");
     }
 
-    /// <summary>
-    /// Tests that co-authors are extracted from commit message trailers.
-    /// </summary>
+    /// <summary>Tests that co-authors are extracted from commit message trailers.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithCoAuthors_ExtractsAll()
     {
@@ -64,9 +55,8 @@ public class AuthorExtractorTests
         await Assert.That(authors).Contains("Bob");
     }
 
-    /// <summary>
-    /// Tests that co-author lines with leading whitespace are correctly trimmed.
-    /// </summary>
+    /// <summary>Tests that co-author lines with leading whitespace are correctly trimmed.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithIndentedCoAuthor_TrimsAndExtracts()
     {
@@ -78,9 +68,8 @@ public class AuthorExtractorTests
         await Assert.That(authors).Contains("Alice");
     }
 
-    /// <summary>
-    /// Tests that NormalizeAuthorName strips email and whitespace.
-    /// </summary>
+    /// <summary>Tests that NormalizeAuthorName strips email and whitespace.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task NormalizeAuthorName_WithEmailFormat_StripsEmail()
     {
@@ -89,9 +78,8 @@ public class AuthorExtractorTests
         await Assert.That(result).IsEqualTo("JohnDoe");
     }
 
-    /// <summary>
-    /// Tests that NormalizeAuthorName returns unknown for empty strings.
-    /// </summary>
+    /// <summary>Tests that NormalizeAuthorName returns unknown for empty strings.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task NormalizeAuthorName_WithEmpty_ReturnsUnknown()
     {
@@ -100,9 +88,8 @@ public class AuthorExtractorTests
         await Assert.That(result).IsEqualTo("unknown");
     }
 
-    /// <summary>
-    /// Tests that NormalizeAuthorName returns unknown for whitespace-only strings.
-    /// </summary>
+    /// <summary>Tests that NormalizeAuthorName returns unknown for whitespace-only strings.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task NormalizeAuthorName_WithWhitespace_ReturnsUnknown()
     {
@@ -111,9 +98,8 @@ public class AuthorExtractorTests
         await Assert.That(result).IsEqualTo("unknown");
     }
 
-    /// <summary>
-    /// Tests that NormalizeAuthorName returns unknown when only email remains after stripping.
-    /// </summary>
+    /// <summary>Tests that NormalizeAuthorName returns unknown when only email remains after stripping.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task NormalizeAuthorName_WithOnlyEmail_ReturnsUnknown()
     {
@@ -122,9 +108,8 @@ public class AuthorExtractorTests
         await Assert.That(result).IsEqualTo("unknown");
     }
 
-    /// <summary>
-    /// Tests that a GitHub noreply email with a numeric ID prefix yields the embedded login.
-    /// </summary>
+    /// <summary>Tests that a GitHub noreply email with a numeric ID prefix yields the embedded login.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task TryGetLoginFromNoReplyEmail_WithNumericPrefix_ReturnsLogin()
     {
@@ -133,9 +118,8 @@ public class AuthorExtractorTests
         await Assert.That(login).IsEqualTo(GlennLogin);
     }
 
-    /// <summary>
-    /// Tests that a legacy GitHub noreply email without an ID prefix yields the login.
-    /// </summary>
+    /// <summary>Tests that a legacy GitHub noreply email without an ID prefix yields the login.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task TryGetLoginFromNoReplyEmail_WithoutPrefix_ReturnsLogin()
     {
@@ -144,9 +128,8 @@ public class AuthorExtractorTests
         await Assert.That(login).IsEqualTo(GlennLogin);
     }
 
-    /// <summary>
-    /// Tests that a regular (non-noreply) email yields no login.
-    /// </summary>
+    /// <summary>Tests that a regular (non-noreply) email yields no login.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task TryGetLoginFromNoReplyEmail_WithRegularEmail_ReturnsNull()
     {
@@ -159,6 +142,7 @@ public class AuthorExtractorTests
     /// Tests that a co-author whose noreply email embeds the same login as the primary author
     /// collapses to a single contributor rather than appearing as a separate display name.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithNoReplyCoAuthorMatchingPrimary_CollapsesToSingleLogin()
     {
@@ -171,9 +155,8 @@ public class AuthorExtractorTests
         await Assert.That(authors.Count).IsEqualTo(1);
     }
 
-    /// <summary>
-    /// Tests that a co-author trailer without an &lt;email&gt; falls back to the display name.
-    /// </summary>
+    /// <summary>Tests that a co-author trailer without an &lt;email&gt; falls back to the display name.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GetCommitAuthors_WithCoAuthorWithoutEmail_UsesName()
     {
@@ -185,9 +168,8 @@ public class AuthorExtractorTests
         await Assert.That(authors).Contains("JaneDoe");
     }
 
-    /// <summary>
-    /// Tests bot detection.
-    /// </summary>
+    /// <summary>Tests bot detection.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task IsBot_WithBotSuffix_ReturnsTrue()
     {
@@ -195,16 +177,13 @@ public class AuthorExtractorTests
         await Assert.That(AuthorExtractor.IsBot("renovate[bot]")).IsTrue();
     }
 
-    /// <summary>
-    /// Tests that non-bot users are not detected as bots.
-    /// </summary>
+    /// <summary>Tests that non-bot users are not detected as bots.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task IsBot_WithRegularUser_ReturnsFalse() =>
         await Assert.That(AuthorExtractor.IsBot(Octocat)).IsFalse();
 
-    /// <summary>
-    /// Creates a test <see cref="GitHubCommit"/> with the specified message and optional author details.
-    /// </summary>
+    /// <summary>Creates a test <see cref="GitHubCommit"/> with the specified message and optional author details.</summary>
     /// <param name="message">The commit message.</param>
     /// <param name="authorLogin">The GitHub login of the author, or null.</param>
     /// <param name="commitAuthorName">The git commit author name, or null.</param>

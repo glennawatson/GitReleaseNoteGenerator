@@ -4,19 +4,13 @@
 
 namespace GitReleaseNoteGenerator.Infrastructure;
 
-/// <summary>
-/// Reads GitHub Actions environment variables.
-/// </summary>
+/// <summary>Reads GitHub Actions environment variables.</summary>
 public static class GitHubActionEnvironment
 {
-    /// <summary>
-    /// Gets the GITHUB_TOKEN environment variable.
-    /// </summary>
+    /// <summary>Gets the GITHUB_TOKEN environment variable.</summary>
     public static string? Token => Environment.GetEnvironmentVariable("GITHUB_TOKEN");
 
-    /// <summary>
-    /// Gets the repository owner from GITHUB_REPOSITORY (format: "owner/repo").
-    /// </summary>
+    /// <summary>Gets the repository owner from GITHUB_REPOSITORY (format: "owner/repo").</summary>
     public static string? RepositoryOwner
     {
         get
@@ -32,9 +26,7 @@ public static class GitHubActionEnvironment
         }
     }
 
-    /// <summary>
-    /// Gets the repository name from GITHUB_REPOSITORY (format: "owner/repo").
-    /// </summary>
+    /// <summary>Gets the repository name from GITHUB_REPOSITORY (format: "owner/repo").</summary>
     public static string? RepositoryName
     {
         get
@@ -50,8 +42,6 @@ public static class GitHubActionEnvironment
         }
     }
 
-    /// <summary>
-    /// Gets the GITHUB_OUTPUT file path environment variable.
-    /// </summary>
+    /// <summary>Gets the GITHUB_OUTPUT file path environment variable.</summary>
     public static string? OutputFile => Environment.GetEnvironmentVariable("GITHUB_OUTPUT");
 }

@@ -9,19 +9,14 @@ using GitReleaseNoteGenerator.Tests.Fakes;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="GitHubClientFactory"/>.
-/// </summary>
+/// <summary>Tests for <see cref="GitHubClientFactory"/>.</summary>
 public class GitHubClientFactoryTests
 {
-    /// <summary>
-    /// A minimal repository payload.
-    /// </summary>
+    /// <summary>A minimal repository payload.</summary>
     private const string RepoJson = """{ "default_branch": "main" }""";
 
-    /// <summary>
-    /// Tests that a client is created for the supplied token.
-    /// </summary>
+    /// <summary>Tests that a client is created for the supplied token.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Create_WithToken_ReturnsClient()
     {
@@ -30,9 +25,8 @@ public class GitHubClientFactoryTests
         await Assert.That(client).IsNotNull();
     }
 
-    /// <summary>
-    /// Tests that requests carry the bearer authorization and product User-Agent headers.
-    /// </summary>
+    /// <summary>Tests that requests carry the bearer authorization and product User-Agent headers.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Create_WithHandler_SendsAuthorizationAndUserAgent()
     {

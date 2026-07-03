@@ -4,17 +4,12 @@
 
 namespace GitReleaseNoteGenerator.Tests;
 
-/// <summary>
-/// Tests for <see cref="Program"/>. These mutate environment variables and the exit code and
-/// must not run in parallel.
-/// </summary>
+/// <summary>Tests for <see cref="Program"/>. These mutate environment variables and the exit code and must not run in parallel.</summary>
 [NotInParallel]
 public class ProgramTests
 {
-    /// <summary>
-    /// Tests that the entry point parses and invokes the command (a missing token fails fast,
-    /// without any network access).
-    /// </summary>
+    /// <summary>Tests that the entry point parses and invokes the command (a missing token fails fast, without any network access).</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task Main_WithMissingToken_RunsCommandAndExits()
     {

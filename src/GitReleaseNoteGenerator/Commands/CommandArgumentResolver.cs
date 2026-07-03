@@ -38,9 +38,7 @@ internal static class CommandArgumentResolver
             parseResult.GetValue(options.OutputNameOption) ?? CommandOptionsFactory.DefaultOutputName);
     }
 
-    /// <summary>
-    /// Validates the command values that must be provided by arguments or environment variables.
-    /// </summary>
+    /// <summary>Validates the command values that must be provided by arguments or environment variables.</summary>
     /// <param name="values">The command values to validate.</param>
     /// <returns>The validation outcome.</returns>
     public static CommandValidationStatus Validate(GenerateCommandValues values)
@@ -57,12 +55,7 @@ internal static class CommandArgumentResolver
             return CommandValidationStatus.RepositoryMissing;
         }
 
-        if (string.IsNullOrEmpty(values.Version))
-        {
-            return CommandValidationStatus.VersionMissing;
-        }
-
-        return CommandValidationStatus.Valid;
+        return string.IsNullOrEmpty(values.Version) ? CommandValidationStatus.VersionMissing : CommandValidationStatus.Valid;
     }
 
     /// <summary>

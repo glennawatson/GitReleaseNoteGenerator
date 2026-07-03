@@ -11,42 +11,27 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GitReleaseNoteGenerator.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="ReleaseNoteGenerator"/>'s GitHub API orchestration, driven end-to-end
-/// through a fake HTTP handler (no live network calls).
-/// </summary>
+/// <summary>Tests for <see cref="ReleaseNoteGenerator"/>'s GitHub API orchestration, driven end-to-end through a fake HTTP handler (no live network calls).</summary>
 public class ReleaseNoteGeneratorApiTests
 {
-    /// <summary>
-    /// The repository owner used in the fake API.
-    /// </summary>
+    /// <summary>The repository owner used in the fake API.</summary>
     private const string Owner = "owner";
 
-    /// <summary>
-    /// The repository name used in the fake API.
-    /// </summary>
+    /// <summary>The repository name used in the fake API.</summary>
     private const string Repo = "repo";
 
-    /// <summary>
-    /// The GitHub token supplied to the client factory in the fake-driven tests.
-    /// </summary>
+    /// <summary>The GitHub token supplied to the client factory in the fake-driven tests.</summary>
     private const string Token = "token";
 
-    /// <summary>
-    /// The commits API path suffix matched by the fake handler.
-    /// </summary>
+    /// <summary>The commits API path suffix matched by the fake handler.</summary>
     private const string CommitsPath = "/commits";
 
-    /// <summary>
-    /// A repository payload whose default branch is "main".
-    /// </summary>
+    /// <summary>A repository payload whose default branch is "main".</summary>
     private const string RepoJson = """
         { "id": 1, "name": "repo", "full_name": "owner/repo", "default_branch": "main", "owner": { "login": "owner", "id": 1 } }
         """;
 
-    /// <summary>
-    /// A single feature commit authored by login "janedev".
-    /// </summary>
+    /// <summary>A single feature commit authored by login "janedev".</summary>
     private const string CommitJson = """
         {
           "sha": "abc1234",
@@ -61,10 +46,8 @@ public class ReleaseNoteGeneratorApiTests
         }
         """;
 
-    /// <summary>
-    /// Tests that with no existing release the generator walks all history and renders the
-    /// commit, category, and contributor.
-    /// </summary>
+    /// <summary>Tests that with no existing release the generator walks all history and renders the commit, category, and contributor.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GenerateAsync_WithNoExistingRelease_RendersCommitsFromAllHistory()
     {
@@ -101,9 +84,8 @@ public class ReleaseNoteGeneratorApiTests
         await Assert.That(notes).Contains("commits/v2.0.0");
     }
 
-    /// <summary>
-    /// Tests that an existing release drives the compare-based path and the compare changelog URL.
-    /// </summary>
+    /// <summary>Tests that an existing release drives the compare-based path and the compare changelog URL.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GenerateAsync_WithExistingRelease_UsesCompareRange()
     {
@@ -148,6 +130,7 @@ public class ReleaseNoteGeneratorApiTests
     /// link targets the tag that actually exists (regression for changelog links ending in
     /// "...10.0.0" instead of "...v10.0.0").
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GenerateAsync_WithBareVersionAndVPrefixedRelease_AlignsCompareHeadToTag()
     {
@@ -187,9 +170,8 @@ public class ReleaseNoteGeneratorApiTests
         await Assert.That(notes).DoesNotContain("compare/v1.0.0...2.0.0");
     }
 
-    /// <summary>
-    /// Tests that an explicit base ref skips release lookup and drives the compare path directly.
-    /// </summary>
+    /// <summary>Tests that an explicit base ref skips release lookup and drives the compare path directly.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     public async Task GenerateAsync_WithExplicitBaseRef_SkipsReleaseLookup()
     {
@@ -224,9 +206,7 @@ public class ReleaseNoteGeneratorApiTests
         await Assert.That(notes).Contains("compare/v1.5.0...v2.0.0");
     }
 
-    /// <summary>
-    /// Builds a comparison payload containing the single feature commit.
-    /// </summary>
+    /// <summary>Builds a comparison payload containing the single feature commit.</summary>
     /// <returns>The compare-result JSON.</returns>
     private static string CompareJson() => $$"""
         {

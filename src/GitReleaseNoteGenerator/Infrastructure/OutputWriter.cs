@@ -6,21 +6,15 @@ using Microsoft.Extensions.Logging;
 
 namespace GitReleaseNoteGenerator.Infrastructure;
 
-/// <summary>
-/// Writes release notes to various outputs: stdout, file, and GITHUB_OUTPUT.
-/// </summary>
+/// <summary>Writes release notes to various outputs: stdout, file, and GITHUB_OUTPUT.</summary>
 public static partial class OutputWriter
 {
-    /// <summary>
-    /// Writes the release notes to stdout.
-    /// </summary>
+    /// <summary>Writes the release notes to stdout.</summary>
     /// <param name="releaseNotes">The release notes content.</param>
     public static void WriteToStdout(string releaseNotes) =>
         Console.WriteLine(releaseNotes);
 
-    /// <summary>
-    /// Writes the release notes to a file.
-    /// </summary>
+    /// <summary>Writes the release notes to a file.</summary>
     /// <param name="releaseNotes">The release notes content.</param>
     /// <param name="outputFile">The file to write to.</param>
     /// <param name="logger">Logger for status messages.</param>

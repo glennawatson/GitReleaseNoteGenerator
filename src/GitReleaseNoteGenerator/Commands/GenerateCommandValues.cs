@@ -4,9 +4,7 @@
 
 namespace GitReleaseNoteGenerator.Commands;
 
-/// <summary>
-/// Contains raw command values before validation and inferred value resolution.
-/// </summary>
+/// <summary>Contains raw command values before validation and inferred value resolution.</summary>
 /// <param name="Token">The GitHub token.</param>
 /// <param name="Owner">The repository owner.</param>
 /// <param name="Repo">The repository name.</param>

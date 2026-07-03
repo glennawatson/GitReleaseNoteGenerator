@@ -11,9 +11,7 @@ namespace GitReleaseNoteGenerator.Services;
 /// </summary>
 public interface IUserLoginSearch
 {
-    /// <summary>
-    /// Finds the GitHub login for the given email address.
-    /// </summary>
+    /// <summary>Finds the GitHub login for the given email address.</summary>
     /// <param name="email">The email address to resolve.</param>
     /// <returns>The matching login, or null if no user was found.</returns>
     Task<string?> FindLoginByEmailAsync(string email);
