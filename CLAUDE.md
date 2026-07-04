@@ -156,9 +156,9 @@ This project enforces **zero warnings**. All analyzer warnings must be resolved,
 
 ### Style Enforcement
 
-- EditorConfig rules (`.editorconfig`) - comprehensive C# formatting and naming conventions; shared with the ReactiveUI `Primitives` ruleset. Copyright/file-header text is set via `file_header_template` in `.editorconfig` (no `stylecop.json`)
-- StyleSharp Analyzers (`StyleSharp.Analyzers`) - StyleCop-compatible (`SAxxxx`) plus StyleSharp (`SSTxxxx`) rules; builds fail on violations
-- Roslynator Analyzers - additional code quality rules
+- EditorConfig rules (`.editorconfig`) - comprehensive C# formatting and naming conventions; shared with the ReactiveUI `Primitives` ruleset. Copyright/file-header text is set via `file_header_template` in `.editorconfig`, where all style configuration lives
+- StyleSharp Analyzers (`StyleSharp.Analyzers`) - `SSTxxxx` style and quality rules; builds fail on violations
+- Additional analyzers contribute further code-quality and security rules
 - Analysis level: latest with all rules enabled (`AllEnabledByDefault`)
 - `WarningsAsErrors`: nullable
 

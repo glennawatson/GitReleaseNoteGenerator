@@ -16,10 +16,8 @@ updates:
       analyzers:
         patterns:
           - "*.Analyzers"
-          - "stylecop.analyzers"
           - "Roslynator.*"
           - "SonarAnalyzer.*"
-          - "Blazor.Common.*"
       polly:
         patterns:
           - "Polly*"
