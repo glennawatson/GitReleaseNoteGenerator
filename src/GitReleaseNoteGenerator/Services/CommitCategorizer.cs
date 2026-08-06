@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 using GitReleaseNoteGenerator.Models;
@@ -21,6 +21,9 @@ internal static partial class CommitCategorizer
 
     /// <summary>The trie key whose lookup yields the canonical "Breaking Changes" category tuple.</summary>
     private const string BreakingChangeKey = "break";
+
+    /// <summary>The bound on conventional-commit header matching, guarding against pathological input.</summary>
+    private const int RegexMatchTimeoutMilliseconds = 1000;
 
     /// <summary>Line separator strings used to split commit messages into individual lines.</summary>
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
@@ -49,36 +52,36 @@ internal static partial class CommitCategorizer
         { "dependabot", "dep" }
     };
 
-    /// <summary>Gets the category trie used for prefix-based categorization.</summary>
-    [SuppressMessage(
-        "Major Code Smell",
-        "S109:Magic numbers should not be used",
-        Justification = "Trie structure is defined by the Conventional Commits spec.")]
+    /// <summary>
+    /// Gets the category trie used for prefix-based categorization. The declaration order below is
+    /// the section order of the generated release notes: the trie assigns each group's sort
+    /// priority from its position, so moving a line here moves that section.
+    /// </summary>
     internal static CategoryTrie CategoryMap { get; } = new(
         OtherHeading,
         [
-            new(1, "Breaking Changes", ["break"]),
-            new(2, "Features", ["feat"]),
-            new(3, "Refactoring", ["refactor"]),
-            new(4, "Fixes", ["fix", "bug"]),
-            new(5, "Performance", ["perf"]),
-            new(6, "General Changes", ["housekeeping", "chore", "update", "build", "ci", "revert"]),
-            new(7, "Tests", ["test"]),
-            new(8, "Documentation", ["doc"]),
-            new(9, "Style Changes", ["style"]),
-            new(10, "Dependencies", ["dep"])
+            new("Breaking Changes", ["break"]),
+            new("Features", ["feat"]),
+            new("Refactoring", ["refactor"]),
+            new("Fixes", ["fix", "bug"]),
+            new("Performance", ["perf"]),
+            new("General Changes", ["housekeeping", "chore", "update", "build", "ci", "revert"]),
+            new("Tests", ["test"]),
+            new("Documentation", ["doc"]),
+            new("Style Changes", ["style"]),
+            new("Dependencies", ["dep"])
         ]);
 
     /// <summary>Gets the emoji for a given category name.</summary>
     /// <param name="category">The category name.</param>
     /// <returns>The emoji string, or a default pin emoji if unknown.</returns>
-    public static string GetEmoji(string category) =>
+    internal static string GetEmoji(string category) =>
         CategoryEmoji.GetValueOrDefault(category, "\U0001f539");
 
     /// <summary>Categorizes a single commit using bot overrides first, then message-based prefix matching.</summary>
     /// <param name="commit">The commit to categorize.</param>
     /// <returns>The priority and category name.</returns>
-    public static (int Priority, string Category) CategorizeCommit(GitHubCommit commit)
+    internal static (int Priority, string Category) CategorizeCommit(GitHubCommit commit)
     {
         ArgumentNullException.ThrowIfNull(commit);
 
@@ -96,7 +99,7 @@ internal static partial class CommitCategorizer
     /// <summary>Groups commits by category, ordered by category priority.</summary>
     /// <param name="commits">The commits to group.</param>
     /// <returns>A dictionary mapping category names to their commits, in priority order.</returns>
-    public static Dictionary<string, List<GitHubCommit>> GroupByCategory(IEnumerable<GitHubCommit> commits)
+    internal static Dictionary<string, List<GitHubCommit>> GroupByCategory(IEnumerable<GitHubCommit> commits)
     {
         ArgumentNullException.ThrowIfNull(commits);
 
@@ -113,11 +116,8 @@ internal static partial class CommitCategorizer
         {
             var (_, category, commit) = priorityQueue.Dequeue();
 
-            if (!groupedCommits.TryGetValue(category, out var list))
-            {
-                list = [];
-                groupedCommits[category] = list;
-            }
+            ref var list = ref CollectionsMarshal.GetValueRefOrAddDefault(groupedCommits, category, out _);
+            list ??= [];
 
             list.Add(commit);
         }
@@ -146,7 +146,9 @@ internal static partial class CommitCategorizer
             return CategoryMap.OtherCategory;
         }
 
-        return match.Groups["breaking"].Success || HasBreakingChangeFooter(lines) ? CategoryMap[BreakingChangeKey] : CategoryMap[match.Groups["type"].Value];
+        return match.Groups["breaking"].Success || HasBreakingChangeFooter(lines)
+            ? CategoryMap[BreakingChangeKey]
+            : CategoryMap[match.Groups["type"].Value];
     }
 
     /// <summary>
@@ -175,6 +177,9 @@ internal static partial class CommitCategorizer
     /// of the form "type(scope)!:", capturing the type and an optional breaking-change marker.
     /// </summary>
     /// <returns>The compiled header-matching regular expression.</returns>
-    [GeneratedRegex(@"^(?<type>[a-zA-Z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    [GeneratedRegex(
+        @"^(?<type>[a-zA-Z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:",
+        RegexOptions.None,
+        matchTimeoutMilliseconds: RegexMatchTimeoutMilliseconds)]
     private static partial Regex ConventionalHeaderRegex();
 }

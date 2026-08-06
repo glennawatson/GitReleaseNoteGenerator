@@ -12,10 +12,13 @@ namespace GitReleaseNoteGenerator.Tests.Services;
 [NotInParallel]
 public class OutputWriterTests
 {
+    /// <summary>The GITHUB_OUTPUT environment variable name.</summary>
+    private const string OutputEnv = "GITHUB_OUTPUT";
+
     /// <summary>Tests that WriteToFileAsync creates a file with the expected content.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task WriteToFileAsync_CreatesFileWithContent()
+    public async Task WriteToFileAsyncCreatesFileWithContent()
     {
         var tempFile = CreateTempFilePath();
         try
@@ -37,13 +40,13 @@ public class OutputWriterTests
     /// <summary>Tests that WriteToGitHubOutputAsync writes heredoc format to the output file.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task WriteToGitHubOutputAsync_WritesHeredocFormat()
+    public async Task WriteToGitHubOutputAsyncWritesHeredocFormat()
     {
         var tempFile = CreateTempFilePath();
         try
         {
             await File.WriteAllTextAsync(tempFile, string.Empty);
-            Environment.SetEnvironmentVariable("GITHUB_OUTPUT", tempFile);
+            Environment.SetEnvironmentVariable(OutputEnv, tempFile);
 
             const string Content = "## What's Changed\n\nSome changes.";
             await OutputWriter.WriteToGitHubOutputAsync(Content, "changelog", NullLogger.Instance);
@@ -56,7 +59,7 @@ public class OutputWriterTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("GITHUB_OUTPUT", null);
+            Environment.SetEnvironmentVariable(OutputEnv, null);
             File.Delete(tempFile);
         }
     }
@@ -64,9 +67,9 @@ public class OutputWriterTests
     /// <summary>Tests that WriteToGitHubOutputAsync does nothing when GITHUB_OUTPUT is not set.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task WriteToGitHubOutputAsync_WithNoEnvVar_DoesNothing()
+    public async Task WriteToGitHubOutputAsyncWithNoEnvVarDoesNothing()
     {
-        Environment.SetEnvironmentVariable("GITHUB_OUTPUT", null);
+        Environment.SetEnvironmentVariable(OutputEnv, null);
 
         // Should not throw
         await OutputWriter.WriteToGitHubOutputAsync("content", "changelog", NullLogger.Instance);

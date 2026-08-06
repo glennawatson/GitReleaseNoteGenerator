@@ -19,9 +19,9 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that the token is read from GITHUB_TOKEN.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Token_WhenSet_ReturnsValue()
+    public async Task TokenWhenSetReturnsValue()
     {
-        var token = WithEnv("GITHUB_TOKEN", "ghp_example", () => GitHubActionEnvironment.Token);
+        var token = WithEnv("GITHUB_TOKEN", "ghp_example", static () => GitHubActionEnvironment.Token);
 
         await Assert.That(token).IsEqualTo("ghp_example");
     }
@@ -29,9 +29,9 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that the owner is parsed from the "owner/repo" slug.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task RepositoryOwner_WithOwnerSlashRepo_ReturnsOwner()
+    public async Task RepositoryOwnerWithOwnerSlashRepoReturnsOwner()
     {
-        var owner = WithEnv(RepositoryEnv, RepoSlug, () => GitHubActionEnvironment.RepositoryOwner);
+        var owner = WithEnv(RepositoryEnv, RepoSlug, static () => GitHubActionEnvironment.RepositoryOwner);
 
         await Assert.That(owner).IsEqualTo("octocat");
     }
@@ -39,9 +39,9 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that the repository name is parsed from the "owner/repo" slug.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task RepositoryName_WithOwnerSlashRepo_ReturnsName()
+    public async Task RepositoryNameWithOwnerSlashRepoReturnsName()
     {
-        var name = WithEnv(RepositoryEnv, RepoSlug, () => GitHubActionEnvironment.RepositoryName);
+        var name = WithEnv(RepositoryEnv, RepoSlug, static () => GitHubActionEnvironment.RepositoryName);
 
         await Assert.That(name).IsEqualTo("Hello-World");
     }
@@ -49,9 +49,9 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that an unset GITHUB_REPOSITORY yields a null owner.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task RepositoryOwner_WhenUnset_ReturnsNull()
+    public async Task RepositoryOwnerWhenUnsetReturnsNull()
     {
-        var owner = WithEnv(RepositoryEnv, null, () => GitHubActionEnvironment.RepositoryOwner);
+        var owner = WithEnv(RepositoryEnv, null, static () => GitHubActionEnvironment.RepositoryOwner);
 
         await Assert.That(owner).IsNull();
     }
@@ -59,9 +59,9 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that a slug without a slash yields a null repository name.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task RepositoryName_WithoutSlash_ReturnsNull()
+    public async Task RepositoryNameWithoutSlashReturnsNull()
     {
-        var name = WithEnv(RepositoryEnv, "noslash", () => GitHubActionEnvironment.RepositoryName);
+        var name = WithEnv(RepositoryEnv, "noslash", static () => GitHubActionEnvironment.RepositoryName);
 
         await Assert.That(name).IsNull();
     }
@@ -69,10 +69,10 @@ public class GitHubActionEnvironmentTests
     /// <summary>Tests that the output file path is read from GITHUB_OUTPUT.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task OutputFile_WhenSet_ReturnsValue()
+    public async Task OutputFileWhenSetReturnsValue()
     {
         const string outputPath = "github_output_path";
-        var outputFile = WithEnv("GITHUB_OUTPUT", outputPath, () => GitHubActionEnvironment.OutputFile);
+        var outputFile = WithEnv("GITHUB_OUTPUT", outputPath, static () => GitHubActionEnvironment.OutputFile);
 
         await Assert.That(outputFile).IsEqualTo(outputPath);
     }

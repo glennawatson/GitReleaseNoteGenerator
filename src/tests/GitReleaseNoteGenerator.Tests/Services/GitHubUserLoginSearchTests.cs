@@ -14,32 +14,35 @@ namespace GitReleaseNoteGenerator.Tests.Services;
 /// <summary>Tests for <see cref="GitHubUserLoginSearch"/>, driving the live search-users API path through a fake HTTP handler.</summary>
 public class GitHubUserLoginSearchTests
 {
+    /// <summary>The stand-in access token handed to the client factory; the fake transport never inspects it.</summary>
+    private const string Token = "token";
+
     /// <summary>Tests that a matching search result yields the user's login.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FindLoginByEmailAsync_WithMatch_ReturnsLogin()
+    public async Task FindLoginByEmailAsyncWithMatchReturnsLogin()
     {
         const string Json = """
-            {"total_count":1,"incomplete_results":false,"items":[{"login":"glennawatson","id":1}]}
+            {"total_count":1,"incomplete_results":false,"items":[{"login":"octocat","id":1}]}
             """;
-        var handler = new FakeHttpMessageHandler(_ => (HttpStatusCode.OK, Json));
-        var search = new GitHubUserLoginSearch(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+        var handler = new FakeHttpMessageHandler(static _ => (HttpStatusCode.OK, Json));
+        var search = new GitHubUserLoginSearch(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
-        var login = await search.FindLoginByEmailAsync("glenn@glennwatson.net");
+        var login = await search.FindLoginByEmailAsync("octocat@example.com");
 
-        await Assert.That(login).IsEqualTo("glennawatson");
+        await Assert.That(login).IsEqualTo("octocat");
     }
 
     /// <summary>Tests that an empty search result yields null.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FindLoginByEmailAsync_WithNoMatch_ReturnsNull()
+    public async Task FindLoginByEmailAsyncWithNoMatchReturnsNull()
     {
         const string Json = """
             {"total_count":0,"incomplete_results":false,"items":[]}
             """;
-        var handler = new FakeHttpMessageHandler(_ => (HttpStatusCode.OK, Json));
-        var search = new GitHubUserLoginSearch(GitHubClientFactory.Create("token", handler), NullLogger.Instance);
+        var handler = new FakeHttpMessageHandler(static _ => (HttpStatusCode.OK, Json));
+        var search = new GitHubUserLoginSearch(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
         var login = await search.FindLoginByEmailAsync("nobody@example.com");
 

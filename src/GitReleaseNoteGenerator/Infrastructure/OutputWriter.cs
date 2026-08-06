@@ -45,7 +45,8 @@ public static partial class OutputWriter
         }
 
         var delimiter = $"ghadelimiter_{Guid.NewGuid():N}";
-        var content = $"{outputName}<<{delimiter}{Environment.NewLine}{releaseNotes}{Environment.NewLine}{delimiter}{Environment.NewLine}";
+        var newLine = Environment.NewLine;
+        var content = $"{outputName}<<{delimiter}{newLine}{releaseNotes}{newLine}{delimiter}{newLine}";
 
         await File.AppendAllTextAsync(githubOutputPath, content).ConfigureAwait(false);
         LogGitHubOutputWritten(logger, outputName);
@@ -63,7 +64,9 @@ public static partial class OutputWriter
     /// Logs that the GITHUB_OUTPUT environment variable is not set.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "GITHUB_OUTPUT environment variable is not set, skipping GitHub output")]
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "GITHUB_OUTPUT environment variable is not set, skipping GitHub output")]
     private static partial void LogGitHubOutputNotSet(ILogger logger);
 
     /// <summary>

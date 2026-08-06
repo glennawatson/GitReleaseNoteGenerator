@@ -6,9 +6,10 @@ namespace GitReleaseNoteGenerator.Models;
 
 /// <summary>
 /// A single category group registered in the <see cref="Services.CategoryTrie"/>: a category
-/// name, its sort priority, and the commit message prefixes that map to it.
+/// name and the commit message prefixes that map to it. Sort priority is not carried here — the
+/// trie derives it from registration order, so the declaration order of the groups is the
+/// single source of truth for how sections are ranked.
 /// </summary>
-/// <param name="Priority">The sort priority for the category (lower = higher priority).</param>
 /// <param name="Category">The category display name.</param>
 /// <param name="Prefixes">The commit message prefixes that map to this category.</param>
-internal sealed record CategoryGroup(int Priority, string Category, IReadOnlyList<string> Prefixes);
+internal sealed record CategoryGroup(string Category, IReadOnlyList<string> Prefixes);

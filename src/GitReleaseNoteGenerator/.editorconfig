@@ -1,0 +1,8 @@
+#############################################
+# Console tool project
+#############################################
+# This project is the git-release-notes CLI. Its progress messages and the release notes
+# themselves are the program's output, written to stdout by contract, not diagnostics that
+# belong on a logging abstraction: callers pipe stdout into a file or a GitHub Actions step.
+[*.cs]
+dotnet_diagnostic.SST1449.severity = none

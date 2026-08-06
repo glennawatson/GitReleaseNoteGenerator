@@ -21,7 +21,7 @@ internal static class CommandArgumentResolver
     /// <param name="parseResult">The parse result from the command-line invocation.</param>
     /// <param name="options">The configured command options.</param>
     /// <returns>The raw command values.</returns>
-    public static GenerateCommandValues ReadValues(ParseResult parseResult, GenerateCommandOptions options)
+    internal static GenerateCommandValues ReadValues(ParseResult parseResult, GenerateCommandOptions options)
     {
         ArgumentNullException.ThrowIfNull(parseResult);
         ArgumentNullException.ThrowIfNull(options);
@@ -41,7 +41,7 @@ internal static class CommandArgumentResolver
     /// <summary>Validates the command values that must be provided by arguments or environment variables.</summary>
     /// <param name="values">The command values to validate.</param>
     /// <returns>The validation outcome.</returns>
-    public static CommandValidationStatus Validate(GenerateCommandValues values)
+    internal static CommandValidationStatus Validate(GenerateCommandValues values)
     {
         ArgumentNullException.ThrowIfNull(values);
 
@@ -55,7 +55,9 @@ internal static class CommandArgumentResolver
             return CommandValidationStatus.RepositoryMissing;
         }
 
-        return string.IsNullOrEmpty(values.Version) ? CommandValidationStatus.VersionMissing : CommandValidationStatus.Valid;
+        return string.IsNullOrEmpty(values.Version)
+            ? CommandValidationStatus.VersionMissing
+            : CommandValidationStatus.Valid;
     }
 
     /// <summary>
@@ -64,7 +66,7 @@ internal static class CommandArgumentResolver
     /// </summary>
     /// <param name="values">The validated command values.</param>
     /// <returns>The resolved command arguments.</returns>
-    public static GenerateCommandArguments CreateArguments(GenerateCommandValues values)
+    internal static GenerateCommandArguments CreateArguments(GenerateCommandValues values)
     {
         ArgumentNullException.ThrowIfNull(values);
 

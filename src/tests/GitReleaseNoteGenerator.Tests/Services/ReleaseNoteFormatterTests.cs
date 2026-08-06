@@ -22,11 +22,11 @@ public class ReleaseNoteFormatterTests
     /// <summary>Tests that the output contains the What's Changed header.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_ContainsWhatsChangedHeader()
+    public async Task FormatReleaseNotesContainsWhatsChangedHeader()
     {
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -42,11 +42,11 @@ public class ReleaseNoteFormatterTests
     /// <summary>Tests that the output contains the full changelog link.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_ContainsFullChangelogLink()
+    public async Task FormatReleaseNotesContainsFullChangelogLink()
     {
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -62,16 +62,13 @@ public class ReleaseNoteFormatterTests
     /// <summary>Tests that grouped commits appear under the correct category heading.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_WithCommits_ShowsCategoryHeadings()
+    public async Task FormatReleaseNotesWithCommitsShowsCategoryHeadings()
     {
         var commit = CreateCommit("feat: new thing", "abc123");
-        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Features", [commit] }
-        };
+        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase) { { "Features", [commit] } };
 
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "testuser" };
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer) { ContributorIdentity.ForLogin("testuser") };
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -88,11 +85,11 @@ public class ReleaseNoteFormatterTests
     /// <summary>Tests that new contributors are listed separately.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_WithNewAuthors_ShowsNewContributors()
+    public async Task FormatReleaseNotesWithNewAuthorsShowsNewContributors()
     {
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "newuser" };
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { "newuser" };
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer) { ContributorIdentity.ForLogin("newuser") };
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer) { ContributorIdentity.ForLogin("newuser") };
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -106,18 +103,18 @@ public class ReleaseNoteFormatterTests
         await Assert.That(result).Contains("@newuser");
     }
 
-    /// <summary>Tests that bot contributors are listed separately.</summary>
+    /// <summary>
+    /// Tests that bot contributors are listed separately, with their brackets escaped and no
+    /// @mention. A raw "@dependabot[bot]" is mangled by Markdown into an "@dependabot" mention —
+    /// which resolves to an unrelated human account — followed by a stray link.
+    /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_WithBotAuthors_ShowsBotSection()
+    public async Task FormatReleaseNotesWithBotAuthorsShowsBotSection()
     {
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "octocat",
-            "dependabot[bot]"
-        };
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer) { ContributorIdentity.ForLogin("octocat"), ContributorIdentity.ForLogin("dependabot[bot]") };
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -128,19 +125,46 @@ public class ReleaseNoteFormatterTests
             grouped);
 
         await Assert.That(result).Contains("Automated services that contributed");
-        await Assert.That(result).Contains("@dependabot[bot]");
+        await Assert.That(result).Contains(@"dependabot\[bot\]");
+        await Assert.That(result).DoesNotContain("@dependabot");
         await Assert.That(result).Contains("Thanks to all the contributors");
+        await Assert.That(result).Contains("@octocat");
+    }
+
+    /// <summary>
+    /// Tests that a contributor whose identifier is a display name rather than a GitHub login is
+    /// attributed as plain text, since an @mention built from it could never resolve to an account.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task FormatReleaseNotesWithUnresolvedDisplayNameDoesNotMentionIt()
+    {
+        const string DisplayName = "Tést Üser dé Éxample";
+        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer) { ContributorIdentity.ForDisplayName(DisplayName), ContributorIdentity.ForLogin("octocat") };
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+
+        var result = ReleaseNoteGenerator.FormatReleaseNotes(
+            Owner,
+            Repo,
+            ChangelogUrl,
+            allAuthors,
+            newAuthors,
+            grouped);
+
+        await Assert.That(result).Contains(DisplayName);
+        await Assert.That(result).DoesNotContain($"@{DisplayName}");
         await Assert.That(result).Contains("@octocat");
     }
 
     /// <summary>Tests that the Contributions section is always present.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_AlwaysContainsContributionsSection()
+    public async Task FormatReleaseNotesAlwaysContainsContributionsSection()
     {
         var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase);
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,
@@ -156,15 +180,12 @@ public class ReleaseNoteFormatterTests
     /// <summary>Tests that a category outside the known map is rendered as its own custom section.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task FormatReleaseNotes_WithUnknownCategory_RendersCustomSection()
+    public async Task FormatReleaseNotesWithUnknownCategoryRendersCustomSection()
     {
         var commit = CreateCommit("custom: thing", "def456");
-        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Custom Category", [commit] }
-        };
-        var allAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var grouped = new Dictionary<string, List<GitHubCommit>>(StringComparer.OrdinalIgnoreCase) { { "Custom Category", [commit] } };
+        var allAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
 
         var result = ReleaseNoteGenerator.FormatReleaseNotes(
             Owner,

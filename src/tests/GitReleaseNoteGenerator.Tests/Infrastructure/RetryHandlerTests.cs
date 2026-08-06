@@ -5,6 +5,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 
 using GitReleaseNoteGenerator.Infrastructure;
 
@@ -22,11 +23,11 @@ public class RetryHandlerTests
     /// <summary>Tests that the pipeline runs a successful operation and returns its result.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreatePipeline_WithSuccessfulOperation_ReturnsResult()
+    public async Task CreatePipelineWithSuccessfulOperationReturnsResult()
     {
         var pipeline = RetryHandler.CreatePipeline(NullLogger.Instance);
 
-        var result = await pipeline.ExecuteAsync(async _ =>
+        var result = await pipeline.ExecuteAsync(static async _ =>
         {
             await Task.Yield();
             return "ok";
@@ -38,23 +39,26 @@ public class RetryHandlerTests
     /// <summary>Tests that the pipeline retries a transient failure and then succeeds, exercising the retry/backoff path.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreatePipeline_WithTransientFailure_RetriesThenSucceeds()
+    public async Task CreatePipelineWithTransientFailureRetriesThenSucceeds()
     {
         const int succeedOnAttempt = 2;
         var pipeline = RetryHandler.CreatePipeline(NullLogger.Instance);
-        var attempts = 0;
+        var attempts = new StrongBox<int>(0);
 
-        var result = await pipeline.ExecuteAsync(async _ =>
-        {
-            attempts++;
-            if (attempts < succeedOnAttempt)
+        var result = await pipeline.ExecuteAsync(
+            static async (state, _) =>
             {
-                throw new HttpRequestException("transient");
-            }
+                state.Value++;
+                if (state.Value < succeedOnAttempt)
+                {
+                    throw new HttpRequestException("transient");
+                }
 
-            await Task.Yield();
-            return attempts;
-        });
+                await Task.Yield();
+                return state.Value;
+            },
+            attempts,
+            CancellationToken.None);
 
         await Assert.That(result).IsEqualTo(succeedOnAttempt);
     }
@@ -62,10 +66,11 @@ public class RetryHandlerTests
     /// <summary>Tests that a primary rate-limit response whose reset is in the future yields a positive delay.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CalculateRateLimitDelay_WithFutureReset_ReturnsPositiveDelay()
+    public async Task CalculateRateLimitDelayWithFutureResetReturnsPositiveDelay()
     {
+        const int resetInMinutes = 5;
         var now = DateTimeOffset.UnixEpoch;
-        var exception = await CreateRateLimitExceptionAsync(now.AddMinutes(5).ToUnixTimeSeconds());
+        var exception = await CreateRateLimitExceptionAsync(now.AddMinutes(resetInMinutes).ToUnixTimeSeconds());
 
         var delay = RetryHandler.CalculateRateLimitDelay(exception, new FixedTimeProvider(now));
 
@@ -76,7 +81,7 @@ public class RetryHandlerTests
     /// <summary>Tests that a primary rate-limit response whose reset is in the past yields no delay.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CalculateRateLimitDelay_WithPastReset_ReturnsNull()
+    public async Task CalculateRateLimitDelayWithPastResetReturnsNull()
     {
         var now = DateTimeOffset.UnixEpoch.AddDays(1);
         var exception = await CreateRateLimitExceptionAsync(DateTimeOffset.UnixEpoch.ToUnixTimeSeconds());
@@ -89,7 +94,7 @@ public class RetryHandlerTests
     /// <summary>Tests that a non-rate-limit exception yields no rate-limit delay.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CalculateRateLimitDelay_WithNonRateLimitException_ReturnsNull()
+    public async Task CalculateRateLimitDelayWithNonRateLimitExceptionReturnsNull()
     {
         var delay = RetryHandler.CalculateRateLimitDelay(new HttpRequestException("boom"), TimeProvider.System);
 
@@ -102,7 +107,7 @@ public class RetryHandlerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CalculateRateLimitDelay_WithRetryAfter_HonorsRetryAfter()
+    public async Task CalculateRateLimitDelayWithRetryAfterHonorsRetryAfter()
     {
         const int retryAfterSeconds = 30;
         var exception = await CreateRetryAfterExceptionAsync(retryAfterSeconds);
@@ -119,7 +124,7 @@ public class RetryHandlerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CalculateRateLimitDelay_WithNoHint_ReturnsNull()
+    public async Task CalculateRateLimitDelayWithNoHintReturnsNull()
     {
         var exception = await CreateApiExceptionAsync(HttpStatusCode.Forbidden, static _ => { });
 
@@ -154,7 +159,7 @@ public class RetryHandlerTests
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/");
         using var response = new HttpResponseMessage(status) { RequestMessage = request };
         configureHeaders(response.Headers);
-        return await ApiException.Create(request, HttpMethod.Get, response, new RefitSettings()).ConfigureAwait(false);
+        return await ApiException.Create(request, HttpMethod.Get, response, new()).ConfigureAwait(false);
     }
 
     /// <summary>A fixed-time <see cref="TimeProvider"/> for deterministic delay calculations.</summary>

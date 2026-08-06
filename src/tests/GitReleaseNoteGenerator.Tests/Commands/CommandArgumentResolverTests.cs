@@ -9,10 +9,16 @@ namespace GitReleaseNoteGenerator.Tests.Commands;
 /// <summary>Tests for <see cref="CommandArgumentResolver"/>.</summary>
 public class CommandArgumentResolverTests
 {
+    /// <summary>The GITHUB_TOKEN environment variable name.</summary>
+    private const string TokenEnv = "GITHUB_TOKEN";
+
+    /// <summary>The GITHUB_REPOSITORY environment variable name.</summary>
+    private const string RepositoryEnv = "GITHUB_REPOSITORY";
+
     /// <summary>Tests that explicitly-provided options are read in preference to the environment.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task ReadValues_WithProvidedOptions_UsesParsedValues()
+    public async Task ReadValuesWithProvidedOptionsUsesParsedValues()
     {
         var options = CommandOptionsFactory.CreateOptions();
         var root = CommandOptionsFactory.CreateRootCommand(options);
@@ -30,14 +36,14 @@ public class CommandArgumentResolverTests
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
     [NotInParallel]
-    public async Task ReadValues_WhenOptionsAbsent_FallsBackToEnvironment()
+    public async Task ReadValuesWhenOptionsAbsentFallsBackToEnvironment()
     {
-        var originalToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-        var originalRepo = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
+        var originalToken = Environment.GetEnvironmentVariable(TokenEnv);
+        var originalRepo = Environment.GetEnvironmentVariable(RepositoryEnv);
         try
         {
-            Environment.SetEnvironmentVariable("GITHUB_TOKEN", "env-token");
-            Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", "octocat/Hello-World");
+            Environment.SetEnvironmentVariable(TokenEnv, "env-token");
+            Environment.SetEnvironmentVariable(RepositoryEnv, "octocat/Hello-World");
 
             var options = CommandOptionsFactory.CreateOptions();
             var root = CommandOptionsFactory.CreateRootCommand(options);
@@ -49,15 +55,15 @@ public class CommandArgumentResolverTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("GITHUB_TOKEN", originalToken);
-            Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", originalRepo);
+            Environment.SetEnvironmentVariable(TokenEnv, originalToken);
+            Environment.SetEnvironmentVariable(RepositoryEnv, originalRepo);
         }
     }
 
     /// <summary>Tests that a missing token is reported.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Validate_WithMissingToken_ReturnsTokenMissing()
+    public async Task ValidateWithMissingTokenReturnsTokenMissing()
     {
         var status = CommandArgumentResolver.Validate(CreateValues(token: null));
 
@@ -67,7 +73,7 @@ public class CommandArgumentResolverTests
     /// <summary>Tests that a missing repository is reported when the token is present.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Validate_WithMissingRepo_ReturnsRepositoryMissing()
+    public async Task ValidateWithMissingRepoReturnsRepositoryMissing()
     {
         var status = CommandArgumentResolver.Validate(CreateValues(repo: null));
 
@@ -77,7 +83,7 @@ public class CommandArgumentResolverTests
     /// <summary>Tests that a missing version is reported when the token and repository are present.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Validate_WithMissingVersion_ReturnsVersionMissing()
+    public async Task ValidateWithMissingVersionReturnsVersionMissing()
     {
         var status = CommandArgumentResolver.Validate(CreateValues(version: null));
 
@@ -87,7 +93,7 @@ public class CommandArgumentResolverTests
     /// <summary>Tests that complete values validate successfully.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Validate_WithAllRequiredValues_ReturnsValid()
+    public async Task ValidateWithAllRequiredValuesReturnsValid()
     {
         var status = CommandArgumentResolver.Validate(CreateValues());
 
@@ -97,7 +103,7 @@ public class CommandArgumentResolverTests
     /// <summary>Tests that values are mapped into arguments.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreateArguments_MapsValues()
+    public async Task CreateArgumentsMapsValues()
     {
         var values = new GenerateCommandValues("t", "o", "r", "base", "head", "1.2.3", null, true, "out");
 

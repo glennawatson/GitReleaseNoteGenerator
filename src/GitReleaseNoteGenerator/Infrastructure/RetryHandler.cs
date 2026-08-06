@@ -29,6 +29,9 @@ public static partial class RetryHandler
     /// <summary>The GitHub header carrying the UTC epoch second at which the rate-limit window resets.</summary>
     private const string RateLimitResetHeader = "x-ratelimit-reset";
 
+    /// <summary>The first-attempt backoff delay, doubled with jitter on each subsequent attempt.</summary>
+    private static readonly TimeSpan BaseRetryDelay = TimeSpan.FromSeconds(2);
+
     /// <summary>Creates a resilience pipeline for GitHub API calls with exponential backoff.</summary>
     /// <param name="logger">Logger for retry event information.</param>
     /// <returns>A configured resilience pipeline.</returns>
@@ -46,12 +49,13 @@ public static partial class RetryHandler
                 MaxRetryAttempts = MaxRetries,
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,
-                Delay = TimeSpan.FromSeconds(2),
+                Delay = BaseRetryDelay,
                 ShouldHandle = new PredicateBuilder()
                     .Handle<ApiException>(ShouldRetry)
                     .Handle<HttpRequestException>()
                     .Handle<TaskCanceledException>(),
-                DelayGenerator = args => ValueTask.FromResult(CalculateRateLimitDelay(args.Outcome.Exception, timeProvider)),
+                DelayGenerator = args =>
+                    ValueTask.FromResult(CalculateRateLimitDelay(args.Outcome.Exception, timeProvider)),
                 OnRetry = args =>
                 {
                     LogRetry(logger, args.Outcome.Exception, args.AttemptNumber + 1, MaxRetries, args.RetryDelay);
@@ -146,6 +150,8 @@ public static partial class RetryHandler
     /// <param name="attempt">The current attempt number (1-based).</param>
     /// <param name="max">The maximum number of retries.</param>
     /// <param name="delay">The delay before the next retry.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "GitHub API call failed (attempt {Attempt}/{Max}), retrying in {Delay}...")]
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "GitHub API call failed (attempt {Attempt}/{Max}), retrying in {Delay}...")]
     private static partial void LogRetry(ILogger logger, Exception? exception, int attempt, int max, TimeSpan delay);
 }

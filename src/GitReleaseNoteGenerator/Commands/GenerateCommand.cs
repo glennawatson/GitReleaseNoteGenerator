@@ -18,6 +18,20 @@ namespace GitReleaseNoteGenerator.Commands;
 /// </summary>
 internal static partial class GenerateCommand
 {
+    /// <summary>The stderr message shown when no GitHub token was supplied.</summary>
+    private const string TokenMissingMessage =
+        "Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.";
+
+    /// <summary>The stderr message shown when no release version was supplied.</summary>
+    private const string VersionMissingMessage =
+        "Error: Release version is required. Pass --release-version "
+        + "(for example, compute it with nbgv in your pipeline).";
+
+    /// <summary>The stderr message shown when the repository owner or name could not be determined.</summary>
+    private const string RepositoryMissingMessage =
+        "Error: Repository owner and name are required. Use --owner/--repo "
+        + "or set GITHUB_REPOSITORY environment variable.";
+
     /// <summary>
     /// Gets or sets the factory used to construct the authenticated GitHub client from a token.
     /// Defaults to the real <see cref="GitHubClientFactory"/>; overridable as a seam so the
@@ -27,7 +41,7 @@ internal static partial class GenerateCommand
 
     /// <summary>Creates the root command with all options and its execution action.</summary>
     /// <returns>The configured root command.</returns>
-    public static RootCommand Create()
+    internal static RootCommand Create()
     {
         var options = CommandOptionsFactory.CreateOptions();
         var rootCommand = CommandOptionsFactory.CreateRootCommand(options);
@@ -75,7 +89,7 @@ internal static partial class GenerateCommand
     /// <summary>Creates the logger factory used by command execution.</summary>
     /// <returns>The configured logger factory.</returns>
     private static ILoggerFactory CreateLoggerFactory() =>
-        LoggerFactory.Create(builder =>
+        LoggerFactory.Create(static builder =>
             builder.AddConsole().SetMinimumLevel(LogLevel.Information));
 
     /// <summary>Writes a summary of the command values to the console.</summary>
@@ -93,7 +107,9 @@ internal static partial class GenerateCommand
     /// <param name="values">The raw command values.</param>
     /// <param name="logger">The logger instance.</param>
     /// <returns>The resolved command arguments, or <see langword="null"/> when validation fails.</returns>
-    private static async Task<GenerateCommandArguments?> ValidateAndResolveArgumentsAsync(GenerateCommandValues values, ILogger logger)
+    private static async Task<GenerateCommandArguments?> ValidateAndResolveArgumentsAsync(
+        GenerateCommandValues values,
+        ILogger logger)
     {
         var status = CommandArgumentResolver.Validate(values);
         if (status != CommandValidationStatus.Valid)
@@ -116,21 +132,21 @@ internal static partial class GenerateCommand
             case CommandValidationStatus.TokenMissing:
             {
                 LogTokenRequired(logger);
-                await Console.Error.WriteLineAsync("Error: GitHub token is required. Use --token or set GITHUB_TOKEN environment variable.").ConfigureAwait(false);
+                await Console.Error.WriteLineAsync(TokenMissingMessage).ConfigureAwait(false);
                 break;
             }
 
             case CommandValidationStatus.VersionMissing:
             {
                 LogVersionRequired(logger);
-                await Console.Error.WriteLineAsync("Error: Release version is required. Pass --release-version (for example, compute it with nbgv in your pipeline).").ConfigureAwait(false);
+                await Console.Error.WriteLineAsync(VersionMissingMessage).ConfigureAwait(false);
                 break;
             }
 
             default:
             {
                 LogRepoRequired(logger);
-                await Console.Error.WriteLineAsync("Error: Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable.").ConfigureAwait(false);
+                await Console.Error.WriteLineAsync(RepositoryMissingMessage).ConfigureAwait(false);
                 break;
             }
         }
@@ -144,12 +160,18 @@ internal static partial class GenerateCommand
     /// <returns>The generated release notes.</returns>
     private static async Task<string> GenerateReleaseNotesAsync(GenerateCommandArguments arguments, ILogger logger)
     {
-        Console.WriteLine($"Generating release notes for {arguments.Owner}/{arguments.Repo} version {arguments.Version}...");
+        Console.WriteLine(
+            $"Generating release notes for {arguments.Owner}/{arguments.Repo} version {arguments.Version}...");
 
         var client = ClientFactory(arguments.Token);
         var generator = new ReleaseNoteGenerator(client, logger);
 
-        var releaseNotes = await generator.GenerateAsync(arguments.Owner, arguments.Repo, arguments.Version, arguments.BaseRef, arguments.HeadRef).ConfigureAwait(false);
+        var releaseNotes = await generator.GenerateAsync(
+            arguments.Owner,
+            arguments.Repo,
+            arguments.Version,
+            arguments.BaseRef,
+            arguments.HeadRef).ConfigureAwait(false);
 
         Console.WriteLine($"Release notes generated ({releaseNotes.Length} characters)");
 
@@ -161,7 +183,10 @@ internal static partial class GenerateCommand
     /// <param name="arguments">The resolved command arguments.</param>
     /// <param name="logger">The logger instance.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    private static async Task WriteReleaseNotesAsync(string releaseNotes, GenerateCommandArguments arguments, ILogger logger)
+    private static async Task WriteReleaseNotesAsync(
+        string releaseNotes,
+        GenerateCommandArguments arguments,
+        ILogger logger)
     {
         OutputWriter.WriteToStdout(releaseNotes);
 
@@ -184,14 +209,18 @@ internal static partial class GenerateCommand
     /// Logs that the GitHub token was not provided.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "GitHub token is required. Use --token or set GITHUB_TOKEN environment variable")]
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "GitHub token is required. Use --token or set GITHUB_TOKEN environment variable")]
     private static partial void LogTokenRequired(ILogger logger);
 
     /// <summary>
     /// Logs that the repository owner and name were not provided.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY environment variable")]
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Repository owner and name are required. Use --owner/--repo or set GITHUB_REPOSITORY env var")]
     private static partial void LogRepoRequired(ILogger logger);
 
     /// <summary>

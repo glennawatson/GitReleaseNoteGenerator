@@ -8,18 +8,24 @@ namespace GitReleaseNoteGenerator.Tests;
 [NotInParallel]
 public class ProgramTests
 {
+    /// <summary>The GITHUB_TOKEN environment variable name.</summary>
+    private const string TokenEnv = "GITHUB_TOKEN";
+
+    /// <summary>The GITHUB_REPOSITORY environment variable name.</summary>
+    private const string RepositoryEnv = "GITHUB_REPOSITORY";
+
     /// <summary>Tests that the entry point parses and invokes the command (a missing token fails fast, without any network access).</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Main_WithMissingToken_RunsCommandAndExits()
+    public async Task MainWithMissingTokenRunsCommandAndExits()
     {
-        var originalToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-        var originalRepository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
+        var originalToken = Environment.GetEnvironmentVariable(TokenEnv);
+        var originalRepository = Environment.GetEnvironmentVariable(RepositoryEnv);
         var originalExitCode = Environment.ExitCode;
         try
         {
-            Environment.SetEnvironmentVariable("GITHUB_TOKEN", null);
-            Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", null);
+            Environment.SetEnvironmentVariable(TokenEnv, null);
+            Environment.SetEnvironmentVariable(RepositoryEnv, null);
             Environment.ExitCode = 0;
 
             await Program.Main([]);
@@ -28,8 +34,8 @@ public class ProgramTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("GITHUB_TOKEN", originalToken);
-            Environment.SetEnvironmentVariable("GITHUB_REPOSITORY", originalRepository);
+            Environment.SetEnvironmentVariable(TokenEnv, originalToken);
+            Environment.SetEnvironmentVariable(RepositoryEnv, originalRepository);
             Environment.ExitCode = originalExitCode;
         }
     }

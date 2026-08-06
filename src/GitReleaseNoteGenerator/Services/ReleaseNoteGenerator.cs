@@ -74,7 +74,9 @@ public sealed partial class ReleaseNoteGenerator
         LogGenerating(owner, repoName, version);
 
         var repo = await _retry.ExecuteAsync(
-            static async (state, _) => await state.Api.GetRepositoryAsync(state.Owner, state.RepoName).ConfigureAwait(false),
+            static async (state, _) => await state.Api
+                .GetRepositoryAsync(state.Owner, state.RepoName)
+                .ConfigureAwait(false),
             (Api: _api, Owner: owner, RepoName: repoName),
             CancellationToken.None).ConfigureAwait(false);
 
@@ -87,8 +89,9 @@ public sealed partial class ReleaseNoteGenerator
 
         LogCommitCount(commits.Count);
 
-        var authorsAfterRelease = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var resolvedAuthorsByCommit = new Dictionary<string, IReadOnlyCollection<string>>(StringComparer.Ordinal);
+        var authorsAfterRelease = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
+        var resolvedAuthorsByCommit =
+            new Dictionary<string, IReadOnlyCollection<ContributorIdentity>>(StringComparer.Ordinal);
         foreach (var commit in commits)
         {
             var resolved = await _authorResolver.GetResolvedAuthorsAsync(commit).ConfigureAwait(false);
@@ -96,12 +99,13 @@ public sealed partial class ReleaseNoteGenerator
             resolvedAuthorsByCommit[commit.Sha ?? string.Empty] = resolved;
         }
 
-        var authorsBeforeRelease = await GetAllAuthorsReachableFromRefAsync(owner, repoName, resolvedBaseRef).ConfigureAwait(false);
+        var authorsBeforeRelease = await GetAllAuthorsReachableFromRefAsync(owner, repoName, resolvedBaseRef)
+            .ConfigureAwait(false);
 
-        var newAuthors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var newAuthors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
         foreach (var author in authorsAfterRelease)
         {
-            if (!authorsBeforeRelease.Contains(author))
+            if (!authorsBeforeRelease.Contains(author.Value))
             {
                 _ = newAuthors.Add(author);
             }
@@ -111,8 +115,12 @@ public sealed partial class ReleaseNoteGenerator
 
         var headTag = AlignVersionWithBaseRefPrefix(version, resolvedBaseRef);
         var fullChangelogUrl = !string.IsNullOrEmpty(resolvedBaseRef)
-            ? string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/compare/{resolvedBaseRef}...{headTag}")
-            : string.Create(CultureInfo.InvariantCulture, $"https://github.com/{owner}/{repoName}/commits/{headTag}");
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"https://github.com/{owner}/{repoName}/compare/{resolvedBaseRef}...{headTag}")
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"https://github.com/{owner}/{repoName}/commits/{headTag}");
 
         return FormatReleaseNotes(
             owner,
@@ -137,13 +145,11 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="version">The release version supplied on the command line.</param>
     /// <param name="baseRef">The resolved base ref (previous release tag), or null.</param>
     /// <returns>The version aligned to the base ref's tag prefix.</returns>
-    internal static string AlignVersionWithBaseRefPrefix(string version, string? baseRef)
-    {
-        return string.IsNullOrEmpty(version)
-            || string.IsNullOrEmpty(baseRef)
-            || !HasVersionPrefix(baseRef)
-            || HasVersionPrefix(version) ? version : string.Concat(baseRef.AsSpan(0, 1), version);
-    }
+    internal static string AlignVersionWithBaseRefPrefix(string version, string? baseRef) =>
+        string.IsNullOrEmpty(version)
+        || string.IsNullOrEmpty(baseRef)
+        || !HasVersionPrefix(baseRef)
+        || HasVersionPrefix(version) ? version : string.Concat(baseRef.AsSpan(0, 1), version);
 
     /// <summary>Formats the release notes markdown from the provided inputs.</summary>
     /// <param name="ownerLogin">Repository owner login for commit links.</param>
@@ -157,8 +163,8 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         string fullChangelogUrl,
-        IEnumerable<string> allAuthors,
-        IEnumerable<string> newAuthors,
+        IEnumerable<ContributorIdentity> allAuthors,
+        IEnumerable<ContributorIdentity> newAuthors,
         Dictionary<string, List<GitHubCommit>> groupedCommits) =>
         FormatReleaseNotes(
             ownerLogin,
@@ -185,10 +191,10 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         string fullChangelogUrl,
-        IEnumerable<string> allAuthors,
-        IEnumerable<string> newAuthors,
+        IEnumerable<ContributorIdentity> allAuthors,
+        IEnumerable<ContributorIdentity> newAuthors,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         var sb = new StringBuilder()
             .AppendLine("## \U0001f5de\ufe0f What's Changed")
@@ -222,7 +228,7 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         AppendKnownSections(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
         AppendOtherSection(sb, ownerLogin, repoName, groupedCommits, resolvedAuthorsByCommit);
@@ -241,15 +247,18 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="sb">The string builder to append to.</param>
     /// <param name="allAuthors">All contributors since the base ref.</param>
     /// <param name="newAuthors">Contributors since the base ref who did not appear earlier.</param>
-    private static void AppendContributions(StringBuilder sb, IEnumerable<string> allAuthors, IEnumerable<string> newAuthors)
+    private static void AppendContributions(
+        StringBuilder sb,
+        IEnumerable<ContributorIdentity> allAuthors,
+        IEnumerable<ContributorIdentity> newAuthors)
     {
-        var allAuthorsList = new List<string>(allAuthors);
-        var newAuthorsList = new List<string>(newAuthors);
+        var allAuthorsList = new List<ContributorIdentity>(allAuthors);
+        var newAuthorsList = new List<ContributorIdentity>(newAuthors);
 
-        var botContributors = new List<string>();
+        var botContributors = new List<ContributorIdentity>();
         foreach (var author in allAuthorsList)
         {
-            if (AuthorExtractor.IsBot(author))
+            if (AuthorExtractor.IsBot(author.Value))
             {
                 botContributors.Add(author);
             }
@@ -257,7 +266,11 @@ public sealed partial class ReleaseNoteGenerator
 
         _ = sb.AppendLine("### \U0001f64c Contributions");
 
-        var botSet = new HashSet<string>(botContributors, StringComparer.OrdinalIgnoreCase);
+        var botSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var bot in botContributors)
+        {
+            _ = botSet.Add(bot.Value);
+        }
 
         var nonBotNewAuthors = FilterOut(newAuthorsList, botSet);
         if (nonBotNewAuthors.Count > 0)
@@ -290,12 +303,14 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="authors">The candidate authors, already de-duplicated.</param>
     /// <param name="excluded">The set of authors to omit (case-insensitive).</param>
     /// <returns>The retained authors, in their original order.</returns>
-    private static List<string> FilterOut(List<string> authors, HashSet<string> excluded)
+    private static List<ContributorIdentity> FilterOut(
+        List<ContributorIdentity> authors,
+        HashSet<string> excluded)
     {
-        var retained = new List<string>();
+        var retained = new List<ContributorIdentity>();
         foreach (var author in authors)
         {
-            if (!excluded.Contains(author))
+            if (!excluded.Contains(author.Value))
             {
                 retained.Add(author);
             }
@@ -304,11 +319,14 @@ public sealed partial class ReleaseNoteGenerator
         return retained;
     }
 
-    /// <summary>Appends each author as an <c>@mention</c>, separated by <paramref name="separator"/>.</summary>
+    /// <summary>Appends each author's attribution, separated by <paramref name="separator"/>.</summary>
     /// <param name="sb">The string builder to append to.</param>
-    /// <param name="separator">The separator placed between mentions.</param>
-    /// <param name="names">The author names to mention.</param>
-    private static void AppendMentions(StringBuilder sb, string separator, IEnumerable<string> names)
+    /// <param name="separator">The separator placed between attributions.</param>
+    /// <param name="names">The author identifiers to attribute.</param>
+    private static void AppendMentions(
+        StringBuilder sb,
+        string separator,
+        IEnumerable<ContributorIdentity> names)
     {
         var first = true;
         foreach (var name in names)
@@ -318,7 +336,7 @@ public sealed partial class ReleaseNoteGenerator
                 _ = sb.Append(separator);
             }
 
-            _ = sb.Append('@').Append(name);
+            AuthorMention.Append(sb, name);
             first = false;
         }
     }
@@ -334,9 +352,9 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
-        foreach (var (_, categoryName, _) in CommitCategorizer.CategoryMap)
+        foreach (var (categoryName, _) in CommitCategorizer.CategoryMap.Groups)
         {
             AppendSectionWhenPresent(sb, ownerLogin, repoName, groupedCommits, categoryName, resolvedAuthorsByCommit);
         }
@@ -353,7 +371,7 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit) =>
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit) =>
         AppendSectionWhenPresent(
             sb,
             ownerLogin,
@@ -373,7 +391,7 @@ public sealed partial class ReleaseNoteGenerator
         string ownerLogin,
         string repoName,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         foreach (var (category, commits) in groupedCommits)
         {
@@ -401,7 +419,7 @@ public sealed partial class ReleaseNoteGenerator
     /// <returns>True when the category is configured; otherwise, false.</returns>
     private static bool IsKnownCategory(string category)
     {
-        foreach (var entry in CommitCategorizer.CategoryMap)
+        foreach (var entry in CommitCategorizer.CategoryMap.Groups)
         {
             if (string.Equals(entry.Category, category, StringComparison.OrdinalIgnoreCase))
             {
@@ -425,7 +443,7 @@ public sealed partial class ReleaseNoteGenerator
         string repoName,
         Dictionary<string, List<GitHubCommit>> groupedCommits,
         string category,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         if (!groupedCommits.TryGetValue(category, out var commits) || commits.Count == 0)
         {
@@ -448,7 +466,7 @@ public sealed partial class ReleaseNoteGenerator
         IEnumerable<GitHubCommit> commits,
         string ownerLogin,
         string repoName,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         FormatSection(sb, category, commits, ownerLogin, repoName, resolvedAuthorsByCommit);
         _ = sb.AppendLine();
@@ -467,7 +485,7 @@ public sealed partial class ReleaseNoteGenerator
         IEnumerable<GitHubCommit> commits,
         string ownerLogin,
         string repoName,
-        IReadOnlyDictionary<string, IReadOnlyCollection<string>>? resolvedAuthorsByCommit)
+        IReadOnlyDictionary<string, IReadOnlyCollection<ContributorIdentity>>? resolvedAuthorsByCommit)
     {
         var emoji = CommitCategorizer.GetEmoji(category);
         _ = sb.Append("### ")
@@ -507,7 +525,9 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="owner">The repository owner.</param>
     /// <param name="repo">The repository name.</param>
     /// <param name="version">The target version.</param>
-    [LoggerMessage(Level = LogLevel.Information, Message = "Generating release notes for {Owner}/{Repo} version {Version}")]
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Generating release notes for {Owner}/{Repo} version {Version}")]
     private partial void LogGenerating(string owner, string repo, string version);
 
     /// <summary>
@@ -535,14 +555,18 @@ public sealed partial class ReleaseNoteGenerator
     /// <summary>
     /// Logs that no existing releases were found for the repository.
     /// </summary>
-    [LoggerMessage(Level = LogLevel.Information, Message = "No existing releases found - using entire commit history")]
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "No existing releases found - using entire commit history")]
     private partial void LogNoExistingReleases();
 
     /// <summary>
     /// Logs that the maximum pagination limit was reached while fetching historical authors.
     /// </summary>
     /// <param name="maxPages">The maximum page limit that was reached.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Reached max pagination limit ({MaxPages}) when fetching historical authors")]
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Reached max pagination limit ({MaxPages}) when fetching historical authors")]
     private partial void LogMaxPaginationReached(int maxPages);
 
     /// <summary>Resolves the base ref by using the provided value or falling back to the latest release tag.</summary>
@@ -560,7 +584,9 @@ public sealed partial class ReleaseNoteGenerator
         try
         {
             var latestRelease = await _retry.ExecuteAsync(
-                static async (state, _) => await state.Api.GetLatestReleaseAsync(state.Owner, state.RepoName).ConfigureAwait(false),
+                static async (state, _) => await state.Api
+                    .GetLatestReleaseAsync(state.Owner, state.RepoName)
+                    .ConfigureAwait(false),
                 (Api: _api, Owner: owner, RepoName: repoName),
                 CancellationToken.None).ConfigureAwait(false);
 
@@ -684,7 +710,13 @@ public sealed partial class ReleaseNoteGenerator
             // per historical contributor, or the strict search rate limit is quickly exhausted.
             foreach (var commit in commits)
             {
-                authors.UnionWith(await _authorResolver.GetResolvedAuthorsAsync(commit, allowSearch: false).ConfigureAwait(false));
+                var resolved = await _authorResolver
+                    .GetResolvedAuthorsAsync(commit, allowSearch: false)
+                    .ConfigureAwait(false);
+                foreach (var author in resolved)
+                {
+                    _ = authors.Add(author.Value);
+                }
             }
 
             page++;

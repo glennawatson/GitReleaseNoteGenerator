@@ -54,7 +54,7 @@ public sealed partial class AuthorResolver
     /// </summary>
     /// <param name="commit">The commit whose contributors should be resolved.</param>
     /// <returns>A sorted set of resolved author identifiers.</returns>
-    public Task<SortedSet<string>> GetResolvedAuthorsAsync(GitHubCommit commit) =>
+    public Task<SortedSet<ContributorIdentity>> GetResolvedAuthorsAsync(GitHubCommit commit) =>
         GetResolvedAuthorsAsync(commit, allowSearch: true);
 
     /// <summary>
@@ -70,11 +70,11 @@ public sealed partial class AuthorResolver
     /// otherwise exhaust the strict search rate limit.
     /// </param>
     /// <returns>A sorted set of resolved author identifiers.</returns>
-    public async Task<SortedSet<string>> GetResolvedAuthorsAsync(GitHubCommit commit, bool allowSearch)
+    public async Task<SortedSet<ContributorIdentity>> GetResolvedAuthorsAsync(GitHubCommit commit, bool allowSearch)
     {
         ArgumentNullException.ThrowIfNull(commit);
 
-        var authors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
         foreach (var contributor in AuthorExtractor.GetContributors(commit))
         {
             _ = authors.Add(await ResolveAsync(contributor, allowSearch).ConfigureAwait(false));
@@ -89,7 +89,7 @@ public sealed partial class AuthorResolver
     /// </summary>
     /// <param name="contributor">The contributor candidate to resolve.</param>
     /// <returns>The resolved identifier.</returns>
-    public Task<string> ResolveAsync(CommitContributor contributor) =>
+    public Task<ContributorIdentity> ResolveAsync(CommitContributor contributor) =>
         ResolveAsync(contributor, allowSearch: true);
 
     /// <summary>
@@ -101,21 +101,23 @@ public sealed partial class AuthorResolver
     /// When false, an unseen email is not resolved via the search-users API; resolution falls
     /// back to the normalized display name instead.
     /// </param>
-    /// <returns>The resolved identifier.</returns>
-    public async Task<string> ResolveAsync(CommitContributor contributor, bool allowSearch)
+    /// <returns>The resolved identity.</returns>
+    public async Task<ContributorIdentity> ResolveAsync(CommitContributor contributor, bool allowSearch)
     {
         ArgumentNullException.ThrowIfNull(contributor);
 
         if (!string.IsNullOrWhiteSpace(contributor.Login))
         {
-            return contributor.Login;
+            return ContributorIdentity.ForLogin(contributor.Login);
         }
 
         // The '??' short-circuits, so the API is queried only when no noreply login was embedded.
         var login = AuthorExtractor.TryGetLoginFromNoReplyEmail(contributor.Email)
             ?? await ResolveLoginByEmailAsync(contributor.Email, allowSearch).ConfigureAwait(false);
 
-        return login ?? AuthorExtractor.NormalizeAuthorName(contributor.Name ?? string.Empty);
+        return login is not null
+            ? ContributorIdentity.ForLogin(login)
+            : ContributorIdentity.ForDisplayName(AuthorExtractor.NormalizeAuthorName(contributor.Name ?? string.Empty));
     }
 
     /// <summary>
@@ -165,6 +167,8 @@ public sealed partial class AuthorResolver
     /// </summary>
     /// <param name="email">The email that could not be resolved.</param>
     /// <param name="exception">The exception that caused the failure.</param>
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Could not resolve a GitHub login for {Email}; falling back to display name")]
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Could not resolve a GitHub login for {Email}; falling back to display name")]
     private partial void LogEmailLookupFailed(string email, Exception exception);
 }

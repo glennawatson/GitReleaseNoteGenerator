@@ -12,7 +12,7 @@ internal static class Program
     /// <summary>Main entry point.</summary>
     /// <param name="args">Command-line arguments.</param>
     /// <returns>The exit code.</returns>
-    public static Task<int> Main(string[] args)
+    internal static Task<int> Main(string[] args)
     {
         var rootCommand = GenerateCommand.Create();
         return rootCommand.Parse(args).InvokeAsync();

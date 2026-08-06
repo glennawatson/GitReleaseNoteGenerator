@@ -18,14 +18,14 @@ public class CategoryTrieTests
     /// <summary>The Documentation category name.</summary>
     private const string DocumentationCategory = "Documentation";
 
-    /// <summary>Priority assigned to the Features category in the test trie.</summary>
+    /// <summary>The fallback category name for messages that match no prefix.</summary>
+    private const string OtherCategory = "Other";
+
+    /// <summary>Priority the trie derives for Features, which is registered first.</summary>
     private const int FeaturesPriority = 1;
 
-    /// <summary>Priority assigned to the Fixes category in the test trie.</summary>
+    /// <summary>Priority the trie derives for Fixes, which is registered second.</summary>
     private const int FixesPriority = 2;
-
-    /// <summary>Priority assigned to the Documentation category in the test trie.</summary>
-    private const int DocumentationPriority = 3;
 
     /// <summary>The number of category groups configured in the test trie.</summary>
     private const int ExpectedGroupCount = 3;
@@ -42,7 +42,7 @@ public class CategoryTrieTests
     /// <summary>Tests that a message matching a prefix returns the correct category.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_WithMatchingPrefix_ReturnsCorrectCategory()
+    public async Task LookupWithMatchingPrefixReturnsCorrectCategory()
     {
         var trie = CreateDefaultTrie();
 
@@ -52,10 +52,29 @@ public class CategoryTrieTests
         await Assert.That(result.Priority).IsEqualTo(FeaturesPriority);
     }
 
+    /// <summary>
+    /// Tests that a category's priority is its registration order, so a category registered
+    /// earlier outranks one registered later.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task LookupAssignsPriorityFromRegistrationOrder()
+    {
+        var trie = CreateDefaultTrie();
+
+        var features = trie.Lookup("feat: add new button");
+        var fixes = trie.Lookup("fix: resolve null reference");
+        var documentation = trie.Lookup("doc: describe the option");
+
+        await Assert.That(features.Priority).IsEqualTo(FeaturesPriority);
+        await Assert.That(fixes.Priority).IsEqualTo(FixesPriority);
+        await Assert.That(documentation.Priority).IsEqualTo(ExpectedGroupCount);
+    }
+
     /// <summary>Tests that prefix matching is case insensitive.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_IsCaseInsensitive()
+    public async Task LookupIsCaseInsensitive()
     {
         var trie = CreateDefaultTrie();
 
@@ -67,20 +86,20 @@ public class CategoryTrieTests
     /// <summary>Tests that an unmatched message returns the Other category.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_WithNoMatch_ReturnsOtherCategory()
+    public async Task LookupWithNoMatchReturnsOtherCategory()
     {
         var trie = CreateDefaultTrie();
 
         var result = trie.Lookup("random commit message");
 
-        await Assert.That(result.Name).IsEqualTo("Other");
+        await Assert.That(result.Name).IsEqualTo(OtherCategory);
         await Assert.That(result.Priority).IsEqualTo(int.MaxValue);
     }
 
     /// <summary>Tests that the fix prefix is correctly matched.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_WithFixPrefix_ReturnsFixes()
+    public async Task LookupWithFixPrefixReturnsFixes()
     {
         var trie = CreateDefaultTrie();
 
@@ -92,7 +111,7 @@ public class CategoryTrieTests
     /// <summary>Tests that the bug prefix also maps to Fixes.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_WithBugPrefix_ReturnsFixes()
+    public async Task LookupWithBugPrefixReturnsFixes()
     {
         var trie = CreateDefaultTrie();
 
@@ -104,7 +123,7 @@ public class CategoryTrieTests
     /// <summary>Tests that the indexer works the same as Lookup.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Indexer_ReturnsSameAsLookup()
+    public async Task IndexerReturnsSameAsLookup()
     {
         var trie = CreateDefaultTrie();
 
@@ -117,7 +136,7 @@ public class CategoryTrieTests
     /// <summary>Tests that Count reflects the number of category groups.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Count_ReturnsNumberOfGroups()
+    public async Task CountReturnsNumberOfGroups()
     {
         var trie = CreateDefaultTrie();
 
@@ -127,23 +146,23 @@ public class CategoryTrieTests
     /// <summary>Tests that an empty message returns Other.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Lookup_WithEmptyMessage_ReturnsOther()
+    public async Task LookupWithEmptyMessageReturnsOther()
     {
         var trie = CreateDefaultTrie();
 
         var result = trie.Lookup(string.Empty);
 
-        await Assert.That(result.Name).IsEqualTo("Other");
+        await Assert.That(result.Name).IsEqualTo(OtherCategory);
     }
 
-    /// <summary>Tests enumeration returns all groups.</summary>
+    /// <summary>Tests that the groups are exposed in registration order.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task Enumeration_ReturnsAllGroups()
+    public async Task GroupsReturnsAllGroupsInRegistrationOrder()
     {
         var trie = CreateDefaultTrie();
 
-        var groups = trie.ToList();
+        var groups = trie.Groups;
 
         await Assert.That(groups).Count().IsEqualTo(ExpectedGroupCount);
         await Assert.That(groups[0].Category).IsEqualTo(FeaturesCategory);
@@ -151,25 +170,28 @@ public class CategoryTrieTests
         await Assert.That(groups[ExpectedGroupCount - 1].Category).IsEqualTo(DocumentationCategory);
     }
 
-    /// <summary>Tests that the non-generic enumerator iterates the registered groups.</summary>
+    /// <summary>Tests that a group carries the prefixes it was registered with.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task NonGenericEnumerator_IteratesGroups()
+    public async Task GroupsCarryTheRegisteredPrefixes()
     {
         var trie = CreateDefaultTrie();
 
-        var enumerator = ((System.Collections.IEnumerable)trie).GetEnumerator();
+        var fixes = trie.Groups[1];
 
-        await Assert.That(enumerator.MoveNext()).IsTrue();
+        await Assert.That(fixes.Prefixes).IsEquivalentTo(FixPrefixes);
     }
 
-    /// <summary>Creates a trie with Features, Fixes, and Documentation categories for testing.</summary>
+    /// <summary>
+    /// Creates a trie with Features, Fixes, and Documentation categories for testing. Declaration
+    /// order here is what gives each category the priority asserted by these tests.
+    /// </summary>
     /// <returns>A configured <see cref="CategoryTrie"/> instance.</returns>
     private static CategoryTrie CreateDefaultTrie() => new(
-        "Other",
+        OtherCategory,
         [
-            new(FeaturesPriority, FeaturesCategory, FeatPrefixes),
-            new(FixesPriority, FixesCategory, FixPrefixes),
-            new(DocumentationPriority, DocumentationCategory, DocPrefixes)
+            new(FeaturesCategory, FeatPrefixes),
+            new(FixesCategory, FixPrefixes),
+            new(DocumentationCategory, DocPrefixes)
         ]);
 }

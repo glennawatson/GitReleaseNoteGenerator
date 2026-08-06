@@ -2,7 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Collections;
+using System.Runtime.InteropServices;
 
 using GitReleaseNoteGenerator.Models;
 
@@ -12,7 +12,7 @@ namespace GitReleaseNoteGenerator.Services;
 /// A trie (prefix tree) that maps commit message prefixes to categories.
 /// Supports efficient longest-prefix-match lookup for categorizing commits.
 /// </summary>
-internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
+internal sealed class CategoryTrie
 {
     /// <summary>The root node of the trie structure.</summary>
     private readonly TrieNode _root = new();
@@ -25,8 +25,11 @@ internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
 
     /// <summary>Initializes a new instance of the <see cref="CategoryTrie"/> class.</summary>
     /// <param name="otherCategoryName">The fallback category name for unmatched messages.</param>
-    /// <param name="categories">The categories with their priorities and prefix mappings.</param>
-    public CategoryTrie(string otherCategoryName, IEnumerable<CategoryGroup> categories)
+    /// <param name="categories">
+    /// The categories and their prefix mappings, most important first. Sort priority is assigned
+    /// from this order, so a category listed earlier outranks one listed later.
+    /// </param>
+    internal CategoryTrie(string otherCategoryName, IEnumerable<CategoryGroup> categories)
     {
         ArgumentNullException.ThrowIfNull(categories);
 
@@ -38,20 +41,26 @@ internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
     }
 
     /// <summary>Gets the fallback category for messages that don't match any prefix.</summary>
-    public (int Priority, string Category) OtherCategory => (int.MaxValue, _otherValue);
+    internal (int Priority, string Category) OtherCategory => (int.MaxValue, _otherValue);
 
     /// <summary>Gets the number of category groups in the trie.</summary>
-    public int Count => _groups.Count;
+    internal int Count => _groups.Count;
+
+    /// <summary>
+    /// Gets the registered category groups in registration order, which is also priority order.
+    /// This is the order release note sections are emitted in.
+    /// </summary>
+    internal IReadOnlyList<CategoryGroup> Groups => _groups;
 
     /// <summary>Indexer to look up the category for a given message.</summary>
     /// <param name="message">The commit message to categorize.</param>
     /// <returns>The priority and category name.</returns>
-    public (int Priority, string Name) this[string message] => Lookup(message);
+    internal (int Priority, string Name) this[string message] => Lookup(message);
 
     /// <summary>Looks up the category for a given message by matching its prefix.</summary>
     /// <param name="message">The commit message to categorize.</param>
     /// <returns>The priority and category name, or <see cref="OtherCategory"/> if no prefix matches.</returns>
-    public (int Priority, string Name) Lookup(string message)
+    internal (int Priority, string Name) Lookup(string message)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -72,24 +81,18 @@ internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
         return OtherCategory;
     }
 
-    /// <summary>Gets an enumerator for the registered category groups.</summary>
-    /// <returns>An enumerator over the registered category groups.</returns>
-    public List<CategoryGroup>.Enumerator GetEnumerator() => _groups.GetEnumerator();
-
-    /// <inheritdoc/>
-    IEnumerator<CategoryGroup> IEnumerable<CategoryGroup>.GetEnumerator() => GetEnumerator();
-
-    /// <inheritdoc/>
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-    /// <summary>Registers a category group and inserts all its prefixes into the trie.</summary>
+    /// <summary>
+    /// Registers a category group and inserts all its prefixes into the trie. The group's sort
+    /// priority is its 1-based registration order, so the first group registered outranks the rest.
+    /// </summary>
     /// <param name="group">The category group to register.</param>
     private void Add(CategoryGroup group)
     {
         _groups.Add(group);
+        var priority = _groups.Count;
         foreach (var prefix in group.Prefixes)
         {
-            AddToTrie(group.Priority, prefix, group.Category);
+            AddToTrie(priority, prefix, group.Category);
         }
     }
 
@@ -103,11 +106,8 @@ internal sealed class CategoryTrie : IEnumerable<CategoryGroup>
         foreach (var character in prefix)
         {
             var ch = char.ToLowerInvariant(character);
-            if (!node.Children.TryGetValue(ch, out var childNode))
-            {
-                childNode = new();
-                node.Children[ch] = childNode;
-            }
+            ref var childNode = ref CollectionsMarshal.GetValueRefOrAddDefault(node.Children, ch, out _);
+            childNode ??= new();
 
             node = childNode;
         }

@@ -26,6 +26,18 @@ public class ReleaseNoteGeneratorApiTests
     /// <summary>The commits API path suffix matched by the fake handler.</summary>
     private const string CommitsPath = "/commits";
 
+    /// <summary>The latest-release API path suffix matched by the fake handler.</summary>
+    private const string LatestReleasePath = "/releases/latest";
+
+    /// <summary>The compare API path fragment matched by the fake handler.</summary>
+    private const string ComparePath = "/compare/";
+
+    /// <summary>The release version requested by the generator tests.</summary>
+    private const string Version = "v2.0.0";
+
+    /// <summary>The subject line of the single commit served by the fake handler.</summary>
+    private const string CommitSubject = "feat: a shiny new feature";
+
     /// <summary>A repository payload whose default branch is "main".</summary>
     private const string RepoJson = """
         { "id": 1, "name": "repo", "full_name": "owner/repo", "default_branch": "main", "owner": { "login": "owner", "id": 1 } }
@@ -49,9 +61,9 @@ public class ReleaseNoteGeneratorApiTests
     /// <summary>Tests that with no existing release the generator walks all history and renders the commit, category, and contributor.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GenerateAsync_WithNoExistingRelease_RendersCommitsFromAllHistory()
+    public async Task GenerateAsyncWithNoExistingReleaseRendersCommitsFromAllHistory()
     {
-        var handler = new FakeHttpMessageHandler(req =>
+        var handler = new FakeHttpMessageHandler(static req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path == $"/repos/{Owner}/{Repo}")
@@ -59,7 +71,7 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, RepoJson);
             }
 
-            if (path.EndsWith("/releases/latest", StringComparison.Ordinal))
+            if (path.EndsWith(LatestReleasePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.NotFound, """{ "message": "Not Found" }""");
             }
@@ -76,10 +88,10 @@ public class ReleaseNoteGeneratorApiTests
 
         var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
-        var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", null, null);
+        var notes = await generator.GenerateAsync(Owner, Repo, Version, null, null);
 
         await Assert.That(notes).Contains("What's Changed");
-        await Assert.That(notes).Contains("feat: a shiny new feature");
+        await Assert.That(notes).Contains(CommitSubject);
         await Assert.That(notes).Contains("@janedev");
         await Assert.That(notes).Contains("commits/v2.0.0");
     }
@@ -87,9 +99,9 @@ public class ReleaseNoteGeneratorApiTests
     /// <summary>Tests that an existing release drives the compare-based path and the compare changelog URL.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GenerateAsync_WithExistingRelease_UsesCompareRange()
+    public async Task GenerateAsyncWithExistingReleaseUsesCompareRange()
     {
-        var handler = new FakeHttpMessageHandler(req =>
+        var handler = new FakeHttpMessageHandler(static req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path == $"/repos/{Owner}/{Repo}")
@@ -97,12 +109,12 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, RepoJson);
             }
 
-            if (path.EndsWith("/releases/latest", StringComparison.Ordinal))
+            if (path.EndsWith(LatestReleasePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.OK, """{ "id": 1, "tag_name": "v1.0.0", "name": "v1.0.0" }""");
             }
 
-            if (path.Contains("/compare/", StringComparison.Ordinal))
+            if (path.Contains(ComparePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.OK, CompareJson());
             }
@@ -119,9 +131,9 @@ public class ReleaseNoteGeneratorApiTests
 
         var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
-        var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", null, null);
+        var notes = await generator.GenerateAsync(Owner, Repo, Version, null, null);
 
-        await Assert.That(notes).Contains("feat: a shiny new feature");
+        await Assert.That(notes).Contains(CommitSubject);
         await Assert.That(notes).Contains("compare/v1.0.0...v2.0.0");
     }
 
@@ -132,9 +144,9 @@ public class ReleaseNoteGeneratorApiTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GenerateAsync_WithBareVersionAndVPrefixedRelease_AlignsCompareHeadToTag()
+    public async Task GenerateAsyncWithBareVersionAndVPrefixedReleaseAlignsCompareHeadToTag()
     {
-        var handler = new FakeHttpMessageHandler(req =>
+        var handler = new FakeHttpMessageHandler(static req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path == $"/repos/{Owner}/{Repo}")
@@ -142,12 +154,12 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, RepoJson);
             }
 
-            if (path.EndsWith("/releases/latest", StringComparison.Ordinal))
+            if (path.EndsWith(LatestReleasePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.OK, """{ "id": 1, "tag_name": "v1.0.0", "name": "v1.0.0" }""");
             }
 
-            if (path.Contains("/compare/", StringComparison.Ordinal))
+            if (path.Contains(ComparePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.OK, CompareJson());
             }
@@ -173,9 +185,9 @@ public class ReleaseNoteGeneratorApiTests
     /// <summary>Tests that an explicit base ref skips release lookup and drives the compare path directly.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GenerateAsync_WithExplicitBaseRef_SkipsReleaseLookup()
+    public async Task GenerateAsyncWithExplicitBaseRefSkipsReleaseLookup()
     {
-        var handler = new FakeHttpMessageHandler(req =>
+        var handler = new FakeHttpMessageHandler(static req =>
         {
             var path = req.RequestUri!.AbsolutePath;
             if (path == $"/repos/{Owner}/{Repo}")
@@ -183,7 +195,7 @@ public class ReleaseNoteGeneratorApiTests
                 return (HttpStatusCode.OK, RepoJson);
             }
 
-            if (path.Contains("/compare/", StringComparison.Ordinal))
+            if (path.Contains(ComparePath, StringComparison.Ordinal))
             {
                 return (HttpStatusCode.OK, CompareJson());
             }
@@ -200,9 +212,9 @@ public class ReleaseNoteGeneratorApiTests
 
         var generator = new ReleaseNoteGenerator(GitHubClientFactory.Create(Token, handler), NullLogger.Instance);
 
-        var notes = await generator.GenerateAsync(Owner, Repo, "v2.0.0", "v1.5.0", null);
+        var notes = await generator.GenerateAsync(Owner, Repo, Version, "v1.5.0", null);
 
-        await Assert.That(notes).Contains("feat: a shiny new feature");
+        await Assert.That(notes).Contains(CommitSubject);
         await Assert.That(notes).Contains("compare/v1.5.0...v2.0.0");
     }
 

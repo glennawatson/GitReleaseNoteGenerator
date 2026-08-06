@@ -13,10 +13,19 @@ public class CommitCategorizerTests
     /// <summary>The Features category name.</summary>
     private const string FeaturesCategory = "Features";
 
+    /// <summary>The Fixes category name.</summary>
+    private const string FixesCategory = "Fixes";
+
+    /// <summary>The fallback category name for commits that match no prefix.</summary>
+    private const string OtherCategory = "Other";
+
+    /// <summary>The Breaking Changes category name.</summary>
+    private const string BreakingChangesCategory = "Breaking Changes";
+
     /// <summary>Tests that a feat-prefixed commit is categorized as Features.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithFeatPrefix_ReturnsFeatures()
+    public async Task CategorizeCommitWithFeatPrefixReturnsFeatures()
     {
         var commit = CreateCommit("feat: new button");
 
@@ -28,31 +37,31 @@ public class CommitCategorizerTests
     /// <summary>Tests that a fix-prefixed commit is categorized as Fixes.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithFixPrefix_ReturnsFixes()
+    public async Task CategorizeCommitWithFixPrefixReturnsFixes()
     {
         var commit = CreateCommit("fix: null reference");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Fixes");
+        await Assert.That(category).IsEqualTo(FixesCategory);
     }
 
     /// <summary>Tests that a commit with no matching prefix is categorized as Other.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithNoPrefix_ReturnsOther()
+    public async Task CategorizeCommitWithNoPrefixReturnsOther()
     {
         var commit = CreateCommit("random change");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Other");
+        await Assert.That(category).IsEqualTo(OtherCategory);
     }
 
     /// <summary>Tests that dependabot commits are categorized as Dependencies.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithDependabotLogin_ReturnsDependencies()
+    public async Task CategorizeCommitWithDependabotLoginReturnsDependencies()
     {
         var commit = CreateCommit("bump package version", authorLogin: "dependabot[bot]");
 
@@ -64,7 +73,7 @@ public class CommitCategorizerTests
     /// <summary>Tests that renovate bot commits are categorized as Dependencies.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithRenovateLogin_ReturnsDependencies()
+    public async Task CategorizeCommitWithRenovateLoginReturnsDependencies()
     {
         var commit = CreateCommit("update dependency X", authorLogin: "renovate[bot]");
 
@@ -76,7 +85,7 @@ public class CommitCategorizerTests
     /// <summary>Tests that a scoped conventional commit is categorized by its type.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithScope_ReturnsTypeCategory()
+    public async Task CategorizeCommitWithScopeReturnsTypeCategory()
     {
         var commit = CreateCommit("feat(api): add endpoint");
 
@@ -88,43 +97,43 @@ public class CommitCategorizerTests
     /// <summary>Tests that a "!" breaking marker promotes the commit to Breaking Changes.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithBreakingBang_ReturnsBreakingChanges()
+    public async Task CategorizeCommitWithBreakingBangReturnsBreakingChanges()
     {
         var commit = CreateCommit("feat!: drop legacy API");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Breaking Changes");
+        await Assert.That(category).IsEqualTo(BreakingChangesCategory);
     }
 
     /// <summary>Tests that a scoped "!" breaking marker promotes the commit to Breaking Changes.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithScopedBreakingBang_ReturnsBreakingChanges()
+    public async Task CategorizeCommitWithScopedBreakingBangReturnsBreakingChanges()
     {
         var commit = CreateCommit("refactor(core)!: rework pipeline");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Breaking Changes");
+        await Assert.That(category).IsEqualTo(BreakingChangesCategory);
     }
 
     /// <summary>Tests that a BREAKING CHANGE footer promotes the commit to Breaking Changes.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithBreakingChangeFooter_ReturnsBreakingChanges()
+    public async Task CategorizeCommitWithBreakingChangeFooterReturnsBreakingChanges()
     {
         var commit = CreateCommit("feat: add option\n\nBREAKING CHANGE: config format changed");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Breaking Changes");
+        await Assert.That(category).IsEqualTo(BreakingChangesCategory);
     }
 
     /// <summary>Tests that the conventional "ci" type is recognized.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithCiType_ReturnsGeneralChanges()
+    public async Task CategorizeCommitWithCiTypeReturnsGeneralChanges()
     {
         var commit = CreateCommit("ci: update workflow");
 
@@ -136,7 +145,7 @@ public class CommitCategorizerTests
     /// <summary>Tests that the conventional "revert" type is recognized.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithRevertType_ReturnsGeneralChanges()
+    public async Task CategorizeCommitWithRevertTypeReturnsGeneralChanges()
     {
         var commit = CreateCommit("revert: undo bad change");
 
@@ -151,31 +160,31 @@ public class CommitCategorizerTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithNonConventionalFixWord_ReturnsOther()
+    public async Task CategorizeCommitWithNonConventionalFixWordReturnsOther()
     {
         var commit = CreateCommit("fixture cleanup for tests");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Other");
+        await Assert.That(category).IsEqualTo(OtherCategory);
     }
 
     /// <summary>Tests that a conventional commit with an unrecognized type falls back to Other.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CategorizeCommit_WithUnknownType_ReturnsOther()
+    public async Task CategorizeCommitWithUnknownTypeReturnsOther()
     {
         var commit = CreateCommit("wip: still working");
 
         var (_, category) = CommitCategorizer.CategorizeCommit(commit);
 
-        await Assert.That(category).IsEqualTo("Other");
+        await Assert.That(category).IsEqualTo(OtherCategory);
     }
 
     /// <summary>Tests that GroupByCategory returns commits grouped by priority order.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GroupByCategory_ReturnsGroupedByPriority()
+    public async Task GroupByCategoryReturnsGroupedByPriority()
     {
         var commits = new[]
         {
@@ -197,7 +206,7 @@ public class CommitCategorizerTests
     /// <summary>Tests that GetEmoji returns the correct emoji for known categories.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GetEmoji_WithKnownCategory_ReturnsEmoji()
+    public async Task GetEmojiWithKnownCategoryReturnsEmoji()
     {
         var emoji = CommitCategorizer.GetEmoji(FeaturesCategory);
 
@@ -207,7 +216,7 @@ public class CommitCategorizerTests
     /// <summary>Tests that GetEmoji returns a fallback for unknown categories.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task GetEmoji_WithUnknownCategory_ReturnsFallback()
+    public async Task GetEmojiWithUnknownCategoryReturnsFallback()
     {
         var emoji = CommitCategorizer.GetEmoji("NonExistent");
 

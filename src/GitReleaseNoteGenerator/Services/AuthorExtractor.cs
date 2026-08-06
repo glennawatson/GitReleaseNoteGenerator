@@ -2,6 +2,8 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Text;
+
 using GitReleaseNoteGenerator.Models;
 
 namespace GitReleaseNoteGenerator.Services;
@@ -18,6 +20,9 @@ public static class AuthorExtractor
     /// <summary>The trailer key (case-insensitive) that identifies a co-author line in a commit message.</summary>
     private const string CoAuthorPrefix = "Co-authored-by:";
 
+    /// <summary>The identifier used when a contributor carries no usable login, name, or email.</summary>
+    private const string UnknownAuthor = "unknown";
+
     /// <summary>Line separator strings used to split commit messages into individual lines.</summary>
     private static readonly string[] LineSeparators = ["\r\n", "\n"];
 
@@ -29,11 +34,11 @@ public static class AuthorExtractor
     /// </summary>
     /// <param name="commit">The GitHub commit to inspect.</param>
     /// <returns>A sorted set of normalized author identifiers.</returns>
-    public static SortedSet<string> GetCommitAuthors(GitHubCommit commit)
+    public static SortedSet<ContributorIdentity> GetCommitAuthors(GitHubCommit commit)
     {
         ArgumentNullException.ThrowIfNull(commit);
 
-        var authors = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new SortedSet<ContributorIdentity>(ContributorIdentity.ValueComparer);
         foreach (var contributor in GetContributors(commit))
         {
             _ = authors.Add(ResolveLocally(contributor));
@@ -66,13 +71,20 @@ public static class AuthorExtractor
     /// display name as a fallback.
     /// </summary>
     /// <param name="contributor">The contributor candidate to resolve.</param>
-    /// <returns>The resolved identifier, or "unknown" if nothing usable is available.</returns>
-    public static string ResolveLocally(CommitContributor contributor)
+    /// <returns>The resolved identity, falling back to "unknown" if nothing usable is available.</returns>
+    public static ContributorIdentity ResolveLocally(CommitContributor contributor)
     {
         ArgumentNullException.ThrowIfNull(contributor);
 
-        return !string.IsNullOrWhiteSpace(contributor.Login) ? contributor.Login : TryGetLoginFromNoReplyEmail(contributor.Email)
-            ?? NormalizeAuthorName(contributor.Name ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(contributor.Login))
+        {
+            return ContributorIdentity.ForLogin(contributor.Login);
+        }
+
+        var embeddedLogin = TryGetLoginFromNoReplyEmail(contributor.Email);
+        return embeddedLogin is not null
+            ? ContributorIdentity.ForLogin(embeddedLogin)
+            : ContributorIdentity.ForDisplayName(NormalizeAuthorName(contributor.Name ?? string.Empty));
     }
 
     /// <summary>
@@ -105,14 +117,18 @@ public static class AuthorExtractor
         return string.IsNullOrWhiteSpace(localPart) ? null : localPart;
     }
 
-    /// <summary>Normalizes an author string by removing the email portion and whitespace.</summary>
+    /// <summary>
+    /// Normalizes an author string by removing the email portion and collapsing runs of whitespace.
+    /// The display name is otherwise preserved: it could not be resolved to a GitHub login, so it is
+    /// attributed as a person's name rather than squashed into a mention-shaped token.
+    /// </summary>
     /// <param name="author">The raw author string (login, name, or "Name &lt;email&gt;").</param>
     /// <returns>A normalized identifier.</returns>
     public static string NormalizeAuthorName(string author)
     {
         if (string.IsNullOrWhiteSpace(author))
         {
-            return "unknown";
+            return UnknownAuthor;
         }
 
         var emailStart = author.IndexOf('<', StringComparison.Ordinal);
@@ -121,8 +137,8 @@ public static class AuthorExtractor
             author = author[..emailStart];
         }
 
-        var normalized = author.Replace(" ", string.Empty, StringComparison.Ordinal).Trim();
-        return string.IsNullOrEmpty(normalized) ? "unknown" : normalized;
+        var normalized = CollapseWhitespace(author);
+        return string.IsNullOrEmpty(normalized) ? UnknownAuthor : normalized;
     }
 
     /// <summary>Determines whether the given author identifier represents a bot account.</summary>
@@ -133,6 +149,35 @@ public static class AuthorExtractor
         ArgumentNullException.ThrowIfNull(author);
 
         return author.Contains("[bot]", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Trims the value and reduces every internal run of whitespace to a single space.</summary>
+    /// <param name="value">The value to collapse.</param>
+    /// <returns>The collapsed value.</returns>
+    private static string CollapseWhitespace(string value)
+    {
+        var trimmed = value.AsSpan().Trim();
+        var builder = new StringBuilder(trimmed.Length);
+        var previousWasWhitespace = false;
+
+        foreach (var character in trimmed)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                previousWasWhitespace = true;
+                continue;
+            }
+
+            if (previousWasWhitespace && builder.Length > 0)
+            {
+                _ = builder.Append(' ');
+            }
+
+            previousWasWhitespace = false;
+            _ = builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>Gets the primary contributor from the GitHub-resolved author or git commit metadata.</summary>

@@ -41,10 +41,7 @@ public static class GitHubClientFactory
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        var httpClient = new HttpClient(handler, disposeHandler: false)
-        {
-            BaseAddress = ApiBaseAddress,
-        };
+        var httpClient = new HttpClient(handler, disposeHandler: false) { BaseAddress = ApiBaseAddress };
         ConfigureDefaultHeaders(httpClient, token);
 
         return RestService.For<IGitHubApi>(httpClient, Settings);

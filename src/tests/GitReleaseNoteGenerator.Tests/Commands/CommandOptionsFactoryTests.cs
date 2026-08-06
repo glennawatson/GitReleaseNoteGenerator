@@ -12,7 +12,7 @@ public class CommandOptionsFactoryTests
     /// <summary>Tests that the output-name option defaults to the changelog name.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreateRootCommand_AppliesOutputNameDefault()
+    public async Task CreateRootCommandAppliesOutputNameDefault()
     {
         var options = CommandOptionsFactory.CreateOptions();
         var root = CommandOptionsFactory.CreateRootCommand(options);
@@ -25,7 +25,7 @@ public class CommandOptionsFactoryTests
     /// <summary>Tests that the root command parses the known options into their values.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreateRootCommand_ParsesProvidedOptions()
+    public async Task CreateRootCommandParsesProvidedOptions()
     {
         var options = CommandOptionsFactory.CreateOptions();
         var root = CommandOptionsFactory.CreateRootCommand(options);

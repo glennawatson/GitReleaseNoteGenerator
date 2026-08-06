@@ -120,6 +120,7 @@ src/
       CategoryTrie.cs               # Prefix trie for commit message categorization
       CommitCategorizer.cs          # Commit -> category mapping + grouping
       AuthorExtractor.cs            # Author/co-author extraction & normalization
+      AuthorMention.cs              # Renders a contributor as an @mention or escaped literal text
       GitHubClientFactory.cs        # Authenticated GitHubClient factory
     Infrastructure/
       OutputWriter.cs               # stdout, file, GITHUB_OUTPUT writing
@@ -127,7 +128,7 @@ src/
       GitHubActionEnvironment.cs    # GitHub Actions env var reader
     Models/
       CommitContributor.cs          # Unresolved contributor (login/name/email)
-      CategoryGroup.cs              # Category priority + name + prefixes (trie input)
+      CategoryGroup.cs              # Category name + prefixes (trie input; priority is declaration order)
     Program.cs                      # Entry point
   tests/GitReleaseNoteGenerator.Tests/
     Services/                       # Unit tests for pure logic classes
@@ -135,8 +136,10 @@ src/
 
 ### Key Dependencies
 
-- **Octokit 14.0.0** - GitHub API client (classic, not Kiota-based)
-- **System.CommandLine 2.0.3** - CLI parsing (stable release, NOT beta)
+Versions are pinned centrally in `src/Directory.Packages.props`.
+
+- **Refit** - GitHub REST client, declared as the `IGitHubApi` interface and implemented by Refit's source generator
+- **System.CommandLine** - CLI parsing (stable release, NOT beta)
 - **Polly.Core** - Retry/resilience for API calls
 - **MinVer** - Build versioning from git tags
 - **TUnit** - Test framework (includes MS Test SDK and code coverage)
@@ -158,7 +161,10 @@ This project enforces **zero warnings**. All analyzer warnings must be resolved,
 
 - EditorConfig rules (`.editorconfig`) - comprehensive C# formatting and naming conventions; shared with the ReactiveUI `Primitives` ruleset. Copyright/file-header text is set via `file_header_template` in `.editorconfig`, where all style configuration lives
 - StyleSharp Analyzers (`StyleSharp.Analyzers`) - `SSTxxxx` style and quality rules; builds fail on violations
-- Additional analyzers contribute further code-quality and security rules
+- PerformanceSharp Analyzers (`PerformanceSharp.Analyzers`) - `PSHxxxx` allocation and hot-path rules
+- SecuritySharp Analyzers (`SecuritySharp.Analyzers`) - `SESxxxx` rules, including hard-coded credential detection
+- These three ship from one pipeline and share the `RoslynCommonAnalyzersVersion` property
+- Additional analyzers contribute further code-quality rules
 - Analysis level: latest with all rules enabled (`AllEnabledByDefault`)
 - `WarningsAsErrors`: nullable
 
@@ -180,9 +186,15 @@ This project enforces **zero warnings**. All analyzer warnings must be resolved,
 
 ### Test Style
 
+Tests are held to exactly the same standard as product code. There is no test-scoped
+`.editorconfig` and no test-only `NoWarn`: every analyzer runs at its configured severity, and XML
+documentation is required on test classes, methods, and helpers just as it is elsewhere.
+
 - TUnit framework with `[Test]` attribute and `await Assert.That(...)` assertions
 - No mocking frameworks - test pure logic classes with concrete test data
-- Test method naming: `MethodName_Scenario_ExpectedResult`
+- Test method naming: `MethodNameScenarioExpectedResult` - PascalCase, no underscores (CA1707)
+- Never use real people's names, logins, or email addresses as test data; use `octocat`,
+  `testuser`, and `example.com` placeholders
 - Tests in `src/tests/` directory, matching project namespace structure
 
 ## Important Notes

@@ -30,11 +30,7 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
         Requests.Add(request);
         var (status, json) = _responder(request);
 
-        var response = new HttpResponseMessage(status)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-            RequestMessage = request,
-        };
+        var response = new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json"), RequestMessage = request };
 
         return Task.FromResult(response);
     }

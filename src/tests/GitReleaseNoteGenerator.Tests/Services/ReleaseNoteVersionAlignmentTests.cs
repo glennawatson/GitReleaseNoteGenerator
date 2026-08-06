@@ -12,30 +12,33 @@ public class ReleaseNoteVersionAlignmentTests
     /// <summary>A bare (unprefixed) release version used across the alignment tests.</summary>
     private const string BareVersion = "10.0.0";
 
+    /// <summary>The "v"-prefixed form of <see cref="BareVersion"/>, matching the repository's tag convention.</summary>
+    private const string PrefixedVersion = "v10.0.0";
+
     /// <summary>Tests that a bare version is given the base ref's "v" prefix so the compare link resolves.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_VPrefixedBaseRefAndBareVersion_AddsPrefix()
+    public async Task AlignVersionWithBaseRefPrefixVPrefixedBaseRefAndBareVersionAddsPrefix()
     {
         var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(BareVersion, "v9.0.0");
 
-        await Assert.That(result).IsEqualTo("v10.0.0");
+        await Assert.That(result).IsEqualTo(PrefixedVersion);
     }
 
     /// <summary>Tests that a version already carrying the prefix is left untouched (no double "v").</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_VPrefixedBaseRefAndVersion_LeavesUnchanged()
+    public async Task AlignVersionWithBaseRefPrefixVPrefixedBaseRefAndVersionLeavesUnchanged()
     {
-        var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix("v10.0.0", "v9.0.0");
+        var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(PrefixedVersion, "v9.0.0");
 
-        await Assert.That(result).IsEqualTo("v10.0.0");
+        await Assert.That(result).IsEqualTo(PrefixedVersion);
     }
 
     /// <summary>Tests that a bare base ref leaves a bare version untouched (no prefix to infer).</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_BareBaseRefAndVersion_LeavesUnchanged()
+    public async Task AlignVersionWithBaseRefPrefixBareBaseRefAndVersionLeavesUnchanged()
     {
         var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(BareVersion, "9.0.0");
 
@@ -45,7 +48,7 @@ public class ReleaseNoteVersionAlignmentTests
     /// <summary>Tests that a null base ref (no previous release) leaves the version untouched.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_NullBaseRef_LeavesUnchanged()
+    public async Task AlignVersionWithBaseRefPrefixNullBaseRefLeavesUnchanged()
     {
         var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(BareVersion, null);
 
@@ -58,7 +61,7 @@ public class ReleaseNoteVersionAlignmentTests
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_NonVersionVBaseRef_LeavesUnchanged()
+    public async Task AlignVersionWithBaseRefPrefixNonVersionVBaseRefLeavesUnchanged()
     {
         var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(BareVersion, "vnext");
 
@@ -68,7 +71,7 @@ public class ReleaseNoteVersionAlignmentTests
     /// <summary>Tests that an uppercase "V" prefix on the base ref is preserved when applied to the version.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task AlignVersionWithBaseRefPrefix_UppercaseVBaseRef_PreservesCase()
+    public async Task AlignVersionWithBaseRefPrefixUppercaseVBaseRefPreservesCase()
     {
         var result = ReleaseNoteGenerator.AlignVersionWithBaseRefPrefix(BareVersion, "V9.0.0");
 
