@@ -12,4 +12,5 @@ namespace GitReleaseNoteGenerator.Models;
 /// <param name="Login">The GitHub login if already resolved by the API, or null.</param>
 /// <param name="Name">The display name (git author name or trailer name), or null.</param>
 /// <param name="Email">The associated email address, or null.</param>
+[System.Diagnostics.DebuggerDisplay("CommitContributor: {ToString(),nq}")]
 public sealed record CommitContributor(string? Login, string? Name, string? Email);

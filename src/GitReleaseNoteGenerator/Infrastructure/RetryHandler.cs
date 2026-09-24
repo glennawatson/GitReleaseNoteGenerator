@@ -5,20 +5,20 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 
 using Microsoft.Extensions.Logging;
-
-using Polly;
 
 using Refit;
 
 namespace GitReleaseNoteGenerator.Infrastructure;
 
 /// <summary>
-/// Provides a Polly-based retry pipeline for GitHub API calls,
-/// handling rate limits, server errors, and transient failures.
+/// Retries GitHub API calls that fail with a rate limit, a server error, or a transient transport
+/// failure, waiting as long as GitHub asks or backing off exponentially with jitter otherwise.
 /// </summary>
-public static partial class RetryHandler
+[System.Diagnostics.DebuggerDisplay("RetryHandler: {_logger}")]
+public sealed partial class RetryHandler
 {
     /// <summary>The maximum number of retry attempts before giving up.</summary>
     private const int MaxRetries = 3;
@@ -29,40 +29,67 @@ public static partial class RetryHandler
     /// <summary>The GitHub header carrying the UTC epoch second at which the rate-limit window resets.</summary>
     private const string RateLimitResetHeader = "x-ratelimit-reset";
 
+    /// <summary>The largest percentage by which jitter lengthens or shortens a backoff delay.</summary>
+    private const int JitterPercent = 25;
+
+    /// <summary>Converts a percentage into a fraction.</summary>
+    private const double PercentScale = 100;
+
     /// <summary>The first-attempt backoff delay, doubled with jitter on each subsequent attempt.</summary>
     private static readonly TimeSpan BaseRetryDelay = TimeSpan.FromSeconds(2);
 
-    /// <summary>Creates a resilience pipeline for GitHub API calls with exponential backoff.</summary>
-    /// <param name="logger">Logger for retry event information.</param>
-    /// <returns>A configured resilience pipeline.</returns>
-    public static ResiliencePipeline CreatePipeline(ILogger logger) =>
-        CreatePipeline(logger, TimeProvider.System);
+    /// <summary>The logger that records each retry.</summary>
+    private readonly ILogger _logger;
 
-    /// <summary>Creates a resilience pipeline for GitHub API calls with exponential backoff.</summary>
+    /// <summary>The time source for rate-limit reset calculations and the waits between attempts.</summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>Initializes a new instance of the <see cref="RetryHandler"/> class using the system clock.</summary>
     /// <param name="logger">Logger for retry event information.</param>
-    /// <param name="timeProvider">The time provider used to calculate rate limit reset delays.</param>
-    /// <returns>A configured resilience pipeline.</returns>
-    public static ResiliencePipeline CreatePipeline(ILogger logger, TimeProvider timeProvider) =>
-        new ResiliencePipelineBuilder()
-            .AddRetry(new()
+    public RetryHandler(ILogger logger)
+        : this(logger, TimeProvider.System)
+    {
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="RetryHandler"/> class.</summary>
+    /// <param name="logger">Logger for retry event information.</param>
+    /// <param name="timeProvider">The time provider used for rate-limit reset delays and the waits between attempts.</param>
+    public RetryHandler(ILogger logger, TimeProvider timeProvider)
+    {
+        _logger = logger;
+        _timeProvider = timeProvider;
+    }
+
+    /// <summary>Runs an operation, retrying it up to <see cref="MaxRetries"/> times while it fails with a retryable error.</summary>
+    /// <typeparam name="TState">The state passed to the operation, so callers can use a static lambda.</typeparam>
+    /// <typeparam name="TResult">The operation's result type.</typeparam>
+    /// <param name="operation">The operation to run; it receives the state and the cancellation token.</param>
+    /// <param name="state">The state passed to each attempt.</param>
+    /// <param name="cancellationToken">A token that cancels the operation and the waits between attempts.</param>
+    /// <returns>The result of the first attempt that succeeds.</returns>
+    public async ValueTask<TResult> ExecuteAsync<TState, TResult>(
+        Func<TState, CancellationToken, ValueTask<TResult>> operation,
+        TState state,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var attempt = 0;
+        while (true)
+        {
+            try
             {
-                MaxRetryAttempts = MaxRetries,
-                BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
-                Delay = BaseRetryDelay,
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<ApiException>(ShouldRetry)
-                    .Handle<HttpRequestException>()
-                    .Handle<TaskCanceledException>(),
-                DelayGenerator = args =>
-                    ValueTask.FromResult(CalculateRateLimitDelay(args.Outcome.Exception, timeProvider)),
-                OnRetry = args =>
-                {
-                    LogRetry(logger, args.Outcome.Exception, args.AttemptNumber + 1, MaxRetries, args.RetryDelay);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
+                return await operation(state, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (attempt < MaxRetries && !cancellationToken.IsCancellationRequested && IsRetryable(exception))
+            {
+                var delay = CalculateRateLimitDelay(exception, _timeProvider) ?? CalculateBackoffDelay(attempt);
+                attempt++;
+                LogRetry(_logger, exception, attempt, MaxRetries, delay);
+                await Task.Delay(delay, _timeProvider, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
 
     /// <summary>
     /// Calculates the retry delay for a GitHub rate limit response. A primary rate limit carries a
@@ -92,6 +119,28 @@ public static partial class RetryHandler
         var retryAfter = GetRetryAfter(apiException);
         return retryAfter > TimeSpan.Zero ? retryAfter + TimeSpan.FromSeconds(1) : null;
     }
+
+    /// <summary>
+    /// Calculates the exponential backoff for an attempt: the base delay doubled per attempt, lengthened
+    /// or shortened by up to <see cref="JitterPercent"/> percent so concurrent callers do not retry in lockstep.
+    /// </summary>
+    /// <param name="attempt">The zero-based number of the attempt that failed.</param>
+    /// <returns>The delay before the next attempt.</returns>
+    internal static TimeSpan CalculateBackoffDelay(int attempt)
+    {
+        var jitterPercent = RandomNumberGenerator.GetInt32(-JitterPercent, JitterPercent + 1);
+        return BaseRetryDelay * (1 << attempt) * (1 + (jitterPercent / PercentScale));
+    }
+
+    /// <summary>Determines whether a failure is a transport failure, a timeout, or an API failure <see cref="ShouldRetry"/> accepts.</summary>
+    /// <param name="exception">The failure to inspect.</param>
+    /// <returns>True when the failure should be retried; otherwise, false.</returns>
+    private static bool IsRetryable(Exception exception) => exception switch
+    {
+        ApiException apiException => ShouldRetry(apiException),
+        HttpRequestException or TaskCanceledException => true,
+        _ => false,
+    };
 
     /// <summary>
     /// Determines whether an API failure is transient or rate-limited and therefore worth retrying.

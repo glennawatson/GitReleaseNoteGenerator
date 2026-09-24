@@ -190,7 +190,7 @@ public class CommitCategorizerTests
         {
             CreateCommit("fix: something"),
             CreateCommit("feat: new thing"),
-            CreateCommit("fix: another fix")
+            CreateCommit("fix: another fix"),
         };
 
         var grouped = CommitCategorizer.GroupByCategory(commits);

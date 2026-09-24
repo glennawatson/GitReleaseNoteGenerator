@@ -12,4 +12,5 @@ namespace GitReleaseNoteGenerator.Models;
 /// <param name="Commit">The git-level commit detail (message and signatures).</param>
 /// <param name="Author">The GitHub account attributed to the author, or null.</param>
 /// <param name="Committer">The GitHub account attributed to the committer, or null.</param>
+[System.Diagnostics.DebuggerDisplay("GitHubCommit: {ToString(),nq}")]
 public sealed record GitHubCommit(string? Sha, GitCommitDetail Commit, GitHubUser? Author, GitHubUser? Committer);

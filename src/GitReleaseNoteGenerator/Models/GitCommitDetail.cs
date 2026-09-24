@@ -11,4 +11,5 @@ namespace GitReleaseNoteGenerator.Models;
 /// <param name="Message">The full commit message, or null.</param>
 /// <param name="Author">The git author signature, or null.</param>
 /// <param name="Committer">The git committer signature, or null.</param>
+[System.Diagnostics.DebuggerDisplay("GitCommitDetail: {ToString(),nq}")]
 public sealed record GitCommitDetail(string? Message, GitSignature? Author, GitSignature? Committer);

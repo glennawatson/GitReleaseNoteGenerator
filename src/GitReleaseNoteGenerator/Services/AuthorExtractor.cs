@@ -227,9 +227,9 @@ public static class AuthorExtractor
         }
 
         var name = value[..emailStart].Trim();
-        var emailEnd = value.IndexOf('>', emailStart);
-        var email = emailEnd > emailStart
-            ? value[(emailStart + 1)..emailEnd].Trim()
+        var emailLength = value.AsSpan(emailStart + 1).IndexOf('>');
+        var email = emailLength >= 0
+            ? value.Substring(emailStart + 1, emailLength).Trim()
             : value[(emailStart + 1)..].Trim();
 
         return new(null, name, email);

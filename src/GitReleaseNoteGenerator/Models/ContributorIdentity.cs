@@ -2,20 +2,23 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
+
 namespace GitReleaseNoteGenerator.Models;
 
 /// <summary>
 /// A contributor after resolution: the identifier to attribute them by, and whether that
 /// identifier is a GitHub login or merely the display name recorded in the commit.
 /// </summary>
+/// <param name="Value">The identifier to attribute the contributor by.</param>
+/// <param name="IsLogin">True when <paramref name="Value"/> is a GitHub login; false when it is a display name.</param>
 /// <remarks>
 /// The distinction cannot be recovered from the text alone. A display name such as "Lukas" is
 /// indistinguishable in shape from a login, so attributing it as <c>@Lukas</c> silently credits
 /// whichever unrelated account happens to hold that name. Only the resolution step knows which of
 /// the two it produced, so it records the answer here rather than leaving the renderer to guess.
 /// </remarks>
-/// <param name="Value">The identifier to attribute the contributor by.</param>
-/// <param name="IsLogin">True when <paramref name="Value"/> is a GitHub login; false when it is a display name.</param>
+[System.Diagnostics.DebuggerDisplay("ContributorIdentity: {ToString(),nq}")]
 public sealed record ContributorIdentity(string Value, bool IsLogin)
 {
     /// <summary>
@@ -39,6 +42,7 @@ public sealed record ContributorIdentity(string Value, bool IsLogin)
     private sealed class ByValueComparer : IComparer<ContributorIdentity>
     {
         /// <inheritdoc/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Compare(ContributorIdentity? x, ContributorIdentity? y) =>
             string.Compare(x?.Value, y?.Value, StringComparison.OrdinalIgnoreCase);
     }

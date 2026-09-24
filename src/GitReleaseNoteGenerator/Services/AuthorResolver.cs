@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using GitReleaseNoteGenerator.Models;
 
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ namespace GitReleaseNoteGenerator.Services;
 /// an already-resolved login, a login embedded in a GitHub noreply email, then a cached
 /// GitHub "search users by email" API call. The normalized display name is used as a fallback.
 /// </summary>
+[System.Diagnostics.DebuggerDisplay("AuthorResolver: {_userSearch}")]
 public sealed partial class AuthorResolver
 {
     /// <summary>The seam used to look up GitHub logins from email addresses.</summary>
@@ -29,7 +31,7 @@ public sealed partial class AuthorResolver
     /// Caches the result of resolving an email to a login. A null value records a previously
     /// attempted lookup that produced no match, so the API is not queried for it again.
     /// </summary>
-    private readonly Dictionary<string, string?> _emailToLoginCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _emailToLoginCache = [with(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>Initializes a new instance of the <see cref="AuthorResolver"/> class backed by the GitHub API.</summary>
     /// <param name="api">An authenticated GitHub API client.</param>
@@ -54,6 +56,7 @@ public sealed partial class AuthorResolver
     /// </summary>
     /// <param name="commit">The commit whose contributors should be resolved.</param>
     /// <returns>A sorted set of resolved author identifiers.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Task<SortedSet<ContributorIdentity>> GetResolvedAuthorsAsync(GitHubCommit commit) =>
         GetResolvedAuthorsAsync(commit, allowSearch: true);
 
@@ -89,6 +92,7 @@ public sealed partial class AuthorResolver
     /// </summary>
     /// <param name="contributor">The contributor candidate to resolve.</param>
     /// <returns>The resolved identifier.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Task<ContributorIdentity> ResolveAsync(CommitContributor contributor) =>
         ResolveAsync(contributor, allowSearch: true);
 

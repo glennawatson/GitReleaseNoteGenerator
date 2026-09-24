@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 
 using GitReleaseNoteGenerator.Infrastructure;
 
@@ -26,6 +27,7 @@ public static class GitHubClientFactory
     /// <summary>Creates a new <see cref="IGitHubApi"/> authenticated with the given token.</summary>
     /// <param name="token">The GitHub personal access token.</param>
     /// <returns>An authenticated GitHub API client.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static IGitHubApi Create(string token) =>
         Create(token, new HttpClientHandler());
 

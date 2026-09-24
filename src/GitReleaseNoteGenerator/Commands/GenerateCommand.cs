@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.CommandLine;
+using System.Runtime.CompilerServices;
 
 using GitReleaseNoteGenerator.Infrastructure;
 using GitReleaseNoteGenerator.Services;
@@ -88,6 +89,7 @@ internal static partial class GenerateCommand
 
     /// <summary>Creates the logger factory used by command execution.</summary>
     /// <returns>The configured logger factory.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ILoggerFactory CreateLoggerFactory() =>
         LoggerFactory.Create(static builder =>
             builder.AddConsole().SetMinimumLevel(LogLevel.Information));

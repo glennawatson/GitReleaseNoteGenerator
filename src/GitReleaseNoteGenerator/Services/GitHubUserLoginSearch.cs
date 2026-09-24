@@ -9,18 +9,17 @@ using GitReleaseNoteGenerator.Models;
 
 using Microsoft.Extensions.Logging;
 
-using Polly;
-
 namespace GitReleaseNoteGenerator.Services;
 
 /// <summary>The production <see cref="IUserLoginSearch"/> implementation backed by the GitHub "search users by email" API, wrapped in the shared retry pipeline.</summary>
+[System.Diagnostics.DebuggerDisplay("GitHubUserLoginSearch: {_api}")]
 public sealed class GitHubUserLoginSearch : IUserLoginSearch
 {
     /// <summary>The authenticated GitHub API client.</summary>
     private readonly IGitHubApi _api;
 
-    /// <summary>The Polly resilience pipeline for retrying failed API calls.</summary>
-    private readonly ResiliencePipeline _retry;
+    /// <summary>Retries failed API calls.</summary>
+    private readonly RetryHandler _retry;
 
     /// <summary>Initializes a new instance of the <see cref="GitHubUserLoginSearch"/> class.</summary>
     /// <param name="api">An authenticated GitHub API client.</param>
@@ -28,7 +27,7 @@ public sealed class GitHubUserLoginSearch : IUserLoginSearch
     public GitHubUserLoginSearch(IGitHubApi api, ILogger logger)
     {
         _api = api;
-        _retry = RetryHandler.CreatePipeline(logger);
+        _retry = new(logger);
     }
 
     /// <inheritdoc/>

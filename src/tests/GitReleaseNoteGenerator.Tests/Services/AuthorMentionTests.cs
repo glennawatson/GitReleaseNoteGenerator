@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using System.Text;
 
 using GitReleaseNoteGenerator.Models;
@@ -140,11 +141,13 @@ public class AuthorMentionTests
     /// <summary>Renders an identity that resolution confirmed as a GitHub login.</summary>
     /// <param name="login">The login to render.</param>
     /// <returns>The rendered Markdown fragment.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string RenderLogin(string login) => Render(ContributorIdentity.ForLogin(login));
 
     /// <summary>Renders an identity that resolution could only pin down to a display name.</summary>
     /// <param name="name">The display name to render.</param>
     /// <returns>The rendered Markdown fragment.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string RenderDisplayName(string name) => Render(ContributorIdentity.ForDisplayName(name));
 
     /// <summary>Renders a single identity through <see cref="AuthorMention.Append"/>.</summary>

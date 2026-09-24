@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace GitReleaseNoteGenerator.Infrastructure;
@@ -11,6 +12,7 @@ public static partial class OutputWriter
 {
     /// <summary>Writes the release notes to stdout.</summary>
     /// <param name="releaseNotes">The release notes content.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void WriteToStdout(string releaseNotes) =>
         Console.WriteLine(releaseNotes);
 

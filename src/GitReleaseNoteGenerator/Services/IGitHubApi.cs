@@ -28,13 +28,22 @@ public interface IGitHubApi
     [Get("/repos/{owner}/{repo}/releases/latest")]
     Task<GitHubRelease> GetLatestReleaseAsync(string owner, string repo);
 
-    /// <summary>Compares two refs and returns the commits between them.</summary>
+    /// <summary>Compares two refs and returns one page of the commits between them.</summary>
     /// <param name="owner">The repository owner.</param>
     /// <param name="repo">The repository name.</param>
     /// <param name="basehead">The compare spec in the form "base...head".</param>
-    /// <returns>The comparison payload.</returns>
+    /// <param name="perPage">The page size (maximum 100).</param>
+    /// <param name="page">The 1-based page number.</param>
+    /// <param name="cancellationToken">A token that cancels the request.</param>
+    /// <returns>The comparison payload carrying the commits on the requested page.</returns>
     [Get("/repos/{owner}/{repo}/compare/{basehead}")]
-    Task<GitHubComparison> CompareAsync(string owner, string repo, string basehead);
+    Task<GitHubComparison> CompareAsync(
+        string owner,
+        string repo,
+        string basehead,
+        [AliasAs("per_page")] int perPage,
+        [AliasAs("page")] int page,
+        CancellationToken cancellationToken);
 
     /// <summary>Lists commits reachable from a ref, one page at a time.</summary>
     /// <param name="owner">The repository owner.</param>
@@ -42,6 +51,7 @@ public interface IGitHubApi
     /// <param name="sha">The SHA or ref to start listing from, or null for the default branch.</param>
     /// <param name="perPage">The page size (maximum 100).</param>
     /// <param name="page">The 1-based page number.</param>
+    /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>The commits on the requested page.</returns>
     [Get("/repos/{owner}/{repo}/commits")]
     Task<IReadOnlyList<GitHubCommit>> GetCommitsAsync(
@@ -49,7 +59,8 @@ public interface IGitHubApi
         string repo,
         [AliasAs("sha")] string? sha,
         [AliasAs("per_page")] int perPage,
-        [AliasAs("page")] int page);
+        [AliasAs("page")] int page,
+        CancellationToken cancellationToken);
 
     /// <summary>Searches for GitHub users, used to resolve a login from a real (non-noreply) email.</summary>
     /// <param name="query">The search query (for example, "user@example.com in:email").</param>

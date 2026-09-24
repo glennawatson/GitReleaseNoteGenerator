@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <Platform>AnyCPU</Platform>
     <IsTestProject>$(MSBuildProjectName.Contains('Tests'))</IsTestProject>
     <DebugType>embedded</DebugType>
@@ -44,9 +44,8 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
-  <!-- MinVer (versioning) — replaces Nerdbank.GitVersioning. Versions derive from
-       git tags prefixed with 'v'; untagged builds produce 1.0.x-alpha.0.<height>
-       until a v1.0.0 (or later) tag is cut. -->
+  <!-- MinVer (versioning). Versions derive from git tags prefixed with 'v'; builds past
+       the latest tag produce a minor-bumped alpha.0.<height> pre-release. -->
   <PropertyGroup>
     <MinVerAutoIncrement>minor</MinVerAutoIncrement>
     <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
@@ -80,7 +79,5 @@
     <PackageReference Include="StyleSharp.Analyzers" PrivateAssets="all" />
     <PackageReference Include="PerformanceSharp.Analyzers" PrivateAssets="all" />
     <PackageReference Include="SecuritySharp.Analyzers" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All" />
-    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" />
   </ItemGroup>
 </Project>

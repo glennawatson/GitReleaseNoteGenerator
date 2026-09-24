@@ -6,4 +6,5 @@ namespace GitReleaseNoteGenerator.Models;
 
 /// <summary>The result of the GitHub "search users" API, carrying the matched accounts.</summary>
 /// <param name="Items">The matched GitHub accounts, most relevant first, or null.</param>
+[System.Diagnostics.DebuggerDisplay("GitHubUserSearchResult: {ToString(),nq}")]
 public sealed record GitHubUserSearchResult(IReadOnlyList<GitHubUser>? Items);

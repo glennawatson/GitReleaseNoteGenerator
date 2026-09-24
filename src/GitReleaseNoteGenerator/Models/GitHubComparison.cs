@@ -4,6 +4,8 @@
 
 namespace GitReleaseNoteGenerator.Models;
 
-/// <summary>The result of the GitHub "compare two commits" API, carrying the commits between the refs.</summary>
-/// <param name="Commits">The commits contained in the comparison range, or null.</param>
-public sealed record GitHubComparison(IReadOnlyList<GitHubCommit>? Commits);
+/// <summary>One page of the GitHub "compare two commits" API, carrying the commits between the refs.</summary>
+/// <param name="TotalCommits">The number of commits in the whole comparison range, across every page.</param>
+/// <param name="Commits">The commits on this page of the comparison range, or null.</param>
+[System.Diagnostics.DebuggerDisplay("GitHubComparison: {ToString(),nq}")]
+public sealed record GitHubComparison(int TotalCommits, IReadOnlyList<GitHubCommit>? Commits);

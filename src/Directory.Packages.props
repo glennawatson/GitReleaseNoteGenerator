@@ -7,21 +7,33 @@
   <PropertyGroup Label="Shared Version Variables">
     <!-- StyleSharp.Analyzers, PerformanceSharp.Analyzers and SecuritySharp.Analyzers ship from the
          same release pipeline and always share a version. -->
-    <RoslynCommonAnalyzersVersion>3.41.7</RoslynCommonAnalyzersVersion>
+    <RoslynCommonAnalyzersVersion>5.1.2</RoslynCommonAnalyzersVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="System.CommandLine" Version="2.0.10" />
-    <PackageVersion Include="Refit" Version="14.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
-    <PackageVersion Include="Polly.Core" Version="8.7.0" />
-    <PackageVersion Include="MinVer" Version="7.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.301" />
-    <PackageVersion Include="TUnit" Version="1.63.0" />
+    <PackageVersion Include="System.CommandLine" Version="3.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Refit" Version="16.1.0" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    <PackageVersion Include="TUnit" Version="1.69.0" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="SecuritySharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.31.0.145097" />
   </ItemGroup>
+
+  <!-- The runtime's own packages track the target framework: each TFM takes the newest release of its major version.
+       Renovate keeps each line on its own major (see .github/renovate.json). -->
+  <Choose>
+    <When Condition="'$(TargetFramework)' == 'net11.0'">
+      <ItemGroup>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-rc.1.26425.128" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-rc.1.26425.128" />
+      </ItemGroup>
+    </When>
+    <Otherwise>
+      <ItemGroup>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.12" />
+      </ItemGroup>
+    </Otherwise>
+  </Choose>
 </Project>

@@ -11,8 +11,6 @@ using GitReleaseNoteGenerator.Infrastructure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Polly;
-
 using Refit;
 
 namespace GitReleaseNoteGenerator.Tests.Infrastructure;
@@ -20,32 +18,41 @@ namespace GitReleaseNoteGenerator.Tests.Infrastructure;
 /// <summary>Tests for <see cref="RetryHandler"/>.</summary>
 public class RetryHandlerTests
 {
-    /// <summary>Tests that the pipeline runs a successful operation and returns its result.</summary>
+    /// <summary>The number of attempts made when every one fails: the first plus three retries.</summary>
+    private const int AttemptsWhenAllFail = 4;
+
+    /// <summary>Tests that a successful operation runs once and returns its result.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task CreatePipelineWithSuccessfulOperationReturnsResult()
+    public async Task ExecuteAsyncWithSuccessfulOperationReturnsResult()
     {
-        var pipeline = RetryHandler.CreatePipeline(NullLogger.Instance);
-
-        var result = await pipeline.ExecuteAsync(static async _ =>
-        {
-            await Task.Yield();
-            return "ok";
-        });
-
-        await Assert.That(result).IsEqualTo("ok");
-    }
-
-    /// <summary>Tests that the pipeline retries a transient failure and then succeeds, exercising the retry/backoff path.</summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    [Test]
-    public async Task CreatePipelineWithTransientFailureRetriesThenSucceeds()
-    {
-        const int succeedOnAttempt = 2;
-        var pipeline = RetryHandler.CreatePipeline(NullLogger.Instance);
+        var retry = new RetryHandler(NullLogger.Instance, new ImmediateTimeProvider());
         var attempts = new StrongBox<int>(0);
 
-        var result = await pipeline.ExecuteAsync(
+        var result = await retry.ExecuteAsync(
+            static async (state, _) =>
+            {
+                state.Value++;
+                await Task.Yield();
+                return "ok";
+            },
+            attempts,
+            CancellationToken.None);
+
+        await Assert.That(result).IsEqualTo("ok");
+        await Assert.That(attempts.Value).IsEqualTo(1);
+    }
+
+    /// <summary>Tests that a transient failure is retried and the later success is returned.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task ExecuteAsyncWithTransientFailureRetriesThenSucceeds()
+    {
+        const int succeedOnAttempt = 2;
+        var retry = new RetryHandler(NullLogger.Instance, new ImmediateTimeProvider());
+        var attempts = new StrongBox<int>(0);
+
+        var result = await retry.ExecuteAsync(
             static async (state, _) =>
             {
                 state.Value++;
@@ -61,6 +68,65 @@ public class RetryHandlerTests
             CancellationToken.None);
 
         await Assert.That(result).IsEqualTo(succeedOnAttempt);
+    }
+
+    /// <summary>Tests that a failure that never clears is retried three times and then rethrown.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task ExecuteAsyncWithPersistentFailureRethrowsAfterMaxRetries()
+    {
+        var retry = new RetryHandler(NullLogger.Instance, new ImmediateTimeProvider());
+        var attempts = new StrongBox<int>(0);
+
+        await Assert.That(async () => await retry.ExecuteAsync<StrongBox<int>, int>(
+            static (state, _) =>
+            {
+                state.Value++;
+                throw new HttpRequestException("down");
+            },
+            attempts,
+            CancellationToken.None)).Throws<HttpRequestException>();
+
+        await Assert.That(attempts.Value).IsEqualTo(AttemptsWhenAllFail);
+    }
+
+    /// <summary>Tests that a non-transient API failure, such as not found, is thrown at once without a retry.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task ExecuteAsyncWithNotFoundDoesNotRetry()
+    {
+        var retry = new RetryHandler(NullLogger.Instance, new ImmediateTimeProvider());
+        var notFound = await CreateApiExceptionAsync(HttpStatusCode.NotFound, static _ => { });
+        var state = (Attempts: new StrongBox<int>(0), Failure: notFound);
+
+        await Assert.That(async () => await retry.ExecuteAsync<(StrongBox<int> Attempts, ApiException Failure), int>(
+            static (state, _) =>
+            {
+                state.Attempts.Value++;
+                throw state.Failure;
+            },
+            state,
+            CancellationToken.None)).Throws<ApiException>();
+
+        await Assert.That(state.Attempts.Value).IsEqualTo(1);
+    }
+
+    /// <summary>Tests that the backoff doubles per attempt and stays within the jitter band around it.</summary>
+    /// <param name="attempt">The zero-based attempt that failed.</param>
+    /// <param name="expectedSeconds">The un-jittered delay for that attempt, in seconds.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    [Arguments(0, 2D)]
+    [Arguments(1, 4D)]
+    [Arguments(2, 8D)]
+    public async Task CalculateBackoffDelayDoublesWithinJitterBand(int attempt, double expectedSeconds)
+    {
+        const double jitter = 0.25;
+
+        var delay = RetryHandler.CalculateBackoffDelay(attempt);
+
+        await Assert.That(delay.TotalSeconds).IsGreaterThanOrEqualTo(expectedSeconds * (1 - jitter));
+        await Assert.That(delay.TotalSeconds).IsLessThanOrEqualTo(expectedSeconds * (1 + jitter));
     }
 
     /// <summary>Tests that a primary rate-limit response whose reset is in the future yields a positive delay.</summary>
@@ -136,6 +202,7 @@ public class RetryHandlerTests
     /// <summary>Creates a Refit <see cref="ApiException"/> for a primary rate limit whose window resets at the given epoch.</summary>
     /// <param name="resetEpochSeconds">The reset time as UTC epoch seconds.</param>
     /// <returns>The constructed exception.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Task<ApiException> CreateRateLimitExceptionAsync(long resetEpochSeconds) =>
         CreateApiExceptionAsync(HttpStatusCode.Forbidden, headers =>
         {
@@ -146,6 +213,7 @@ public class RetryHandlerTests
     /// <summary>Creates a Refit <see cref="ApiException"/> carrying a "Retry-After" header hint.</summary>
     /// <param name="retryAfterSeconds">The requested wait, in seconds.</param>
     /// <returns>The constructed exception.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Task<ApiException> CreateRetryAfterExceptionAsync(int retryAfterSeconds) =>
         CreateApiExceptionAsync(HttpStatusCode.Forbidden, headers =>
             headers.Add("Retry-After", retryAfterSeconds.ToString(CultureInfo.InvariantCulture)));
@@ -168,5 +236,34 @@ public class RetryHandlerTests
     {
         /// <inheritdoc/>
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    /// <summary>A <see cref="TimeProvider"/> whose timers fire straight away, so the waits between retries take no time.</summary>
+    private sealed class ImmediateTimeProvider : TimeProvider
+    {
+        /// <inheritdoc/>
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            // Fired on the pool rather than inline, so the timer exists before the delay it completes observes it.
+            _ = ThreadPool.UnsafeQueueUserWorkItem(static args => args.Callback(args.State), (Callback: callback, State: state), preferLocal: false);
+            return new InertTimer();
+        }
+
+        /// <summary>A timer that has already fired, so changing or disposing it does nothing.</summary>
+        private sealed class InertTimer : ITimer
+        {
+            /// <inheritdoc/>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool Change(TimeSpan dueTime, TimeSpan period) => false;
+
+            /// <inheritdoc/>
+            public void Dispose()
+            {
+            }
+
+            /// <inheritdoc/>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 }

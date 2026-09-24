@@ -124,7 +124,7 @@ src/
       GitHubClientFactory.cs        # Authenticated GitHubClient factory
     Infrastructure/
       OutputWriter.cs               # stdout, file, GITHUB_OUTPUT writing
-      RetryHandler.cs               # Polly retry for GitHub API
+      RetryHandler.cs               # Retry/backoff for GitHub API calls
       GitHubActionEnvironment.cs    # GitHub Actions env var reader
     Models/
       CommitContributor.cs          # Unresolved contributor (login/name/email)
@@ -136,11 +136,10 @@ src/
 
 ### Key Dependencies
 
-Versions are pinned centrally in `src/Directory.Packages.props`.
+Versions are pinned centrally in `src/Directory.Packages.props`. The runtime packages (`Microsoft.Extensions.*`) are chosen per target framework: net10.0 takes the latest 10.x and net11.0 the latest 11.x, and Renovate keeps each line on its own major.
 
 - **Refit** - GitHub REST client, declared as the `IGitHubApi` interface and implemented by Refit's source generator
-- **System.CommandLine** - CLI parsing (stable release, NOT beta)
-- **Polly.Core** - Retry/resilience for API calls
+- **System.CommandLine** - CLI parsing (3.0 line, one version for both target frameworks)
 - **MinVer** - Build versioning from git tags
 - **TUnit** - Test framework (includes MS Test SDK and code coverage)
 
@@ -148,7 +147,8 @@ Versions are pinned centrally in `src/Directory.Packages.props`.
 
 - **LoggerMessage source generation** - All logging uses `[LoggerMessage]` attribute for high-perf source-generated delegates
 - **CategoryTrie** - Prefix tree for O(m) commit message categorization where m = prefix length
-- **Polly retry pipeline** - Handles rate limits (waits for reset), 5xx errors, timeouts
+- **RetryHandler** - Up to 3 retries with jittered exponential backoff; waits out rate limits (reset or Retry-After) and retries 5xx errors, transport failures and timeouts
+- **Refit pagination** - Commit listings and compares are walked with `PagedEnumerable`, one retried request per page
 - **GITHUB_OUTPUT heredoc** - Uses unique GUID delimiters to prevent content collisions
 
 ## Code Style & Quality Requirements
@@ -164,7 +164,6 @@ This project enforces **zero warnings**. All analyzer warnings must be resolved,
 - PerformanceSharp Analyzers (`PerformanceSharp.Analyzers`) - `PSHxxxx` allocation and hot-path rules
 - SecuritySharp Analyzers (`SecuritySharp.Analyzers`) - `SESxxxx` rules, including hard-coded credential detection
 - These three ship from one pipeline and share the `RoslynCommonAnalyzersVersion` property
-- Additional analyzers contribute further code-quality rules
 - Analysis level: latest with all rules enabled (`AllEnabledByDefault`)
 - `WarningsAsErrors`: nullable
 
@@ -200,7 +199,7 @@ documentation is required on test classes, methods, and helpers just as it is el
 ## Important Notes
 
 - **No shallow clones:** Repository requires full clone (with tags) for MinVer
-- **Required .NET SDKs:** .NET 8.0 and 10.0 (both LTS targets)
+- **Required .NET SDKs:** .NET 10.0 and 11.0 (the tool targets `net10.0` and `net11.0`; the CI scripts also run on the .NET 11 SDK)
 - **SLNX Format:** Uses modern XML-based solution format
 - **PackAsTool:** Main project is distributed as a dotnet global tool (`git-release-notes`)
 - **InternalsVisibleTo:** Test project can access `internal` members of the main project

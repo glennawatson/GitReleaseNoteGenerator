@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using GitReleaseNoteGenerator.Infrastructure;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -77,5 +78,6 @@ public class OutputWriterTests
 
     /// <summary>Creates a unique temporary file path without using the insecure <c>Path.GetTempFileName()</c>.</summary>
     /// <returns>A path to a not-yet-existing file in the temporary directory.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string CreateTempFilePath() => Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 }

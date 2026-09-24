@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
@@ -41,7 +42,7 @@ internal static partial class CommitCategorizer
         { "Documentation", "\U0001f4dd" },
         { "Style Changes", "\U0001f485" },
         { "Dependencies", "\U0001f4e6" },
-        { OtherHeading, "\U0001f4cc" }
+        { OtherHeading, "\U0001f4cc" },
     };
 
     /// <summary>Maps known bot login names to the category prefix key used for trie lookup.</summary>
@@ -49,7 +50,7 @@ internal static partial class CommitCategorizer
     {
         { "renovate[bot]", "dep" },
         { "dependabot[bot]", "dep" },
-        { "dependabot", "dep" }
+        { "dependabot", "dep" },
     };
 
     /// <summary>
@@ -75,6 +76,7 @@ internal static partial class CommitCategorizer
     /// <summary>Gets the emoji for a given category name.</summary>
     /// <param name="category">The category name.</param>
     /// <returns>The emoji string, or a default pin emoji if unknown.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static string GetEmoji(string category) =>
         CategoryEmoji.GetValueOrDefault(category, "\U0001f539");
 

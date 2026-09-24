@@ -2,6 +2,10 @@
 
 A .NET global tool that generates categorized release notes from git commit history using the GitHub API.
 
+## Requirements
+
+The tool ships builds for .NET 10 and .NET 11, so either runtime must be installed.
+
 ## Installation
 
 ```bash
@@ -56,6 +60,13 @@ Commits are categorized by their conventional-commit-style prefix:
 
 Commits from `dependabot[bot]` and `renovate[bot]` are automatically categorized as Dependencies.
 
+## How Commits Are Collected
+
+- With a base ref (the latest release tag by default), the commits come from the GitHub compare API. It is read page by page until every commit in the range is collected.
+- With no releases yet, the whole history reachable from the head ref is used.
+- Contributors who already appear in the history reachable from the base ref are not listed as new contributors.
+- Rate limits are waited out for as long as GitHub asks (`x-ratelimit-reset` or `Retry-After`). Server errors and network failures are retried up to three times with exponential backoff.
+
 ## GitHub Actions Usage
 
 ```yaml
@@ -69,12 +80,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
       - run: dotnet tool install -g GitReleaseNoteGenerator
       - name: Generate Release Notes
         env:

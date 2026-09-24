@@ -8,14 +8,14 @@ namespace GitReleaseNoteGenerator.Commands;
 internal enum CommandValidationStatus
 {
     /// <summary>All required values are present.</summary>
-    Valid,
+    Valid = 0,
 
     /// <summary>The GitHub token is missing.</summary>
-    TokenMissing,
+    TokenMissing = 1,
 
     /// <summary>The repository owner and/or name are missing.</summary>
-    RepositoryMissing,
+    RepositoryMissing = 2,
 
     /// <summary>The release version is missing.</summary>
-    VersionMissing,
+    VersionMissing = 3,
 }

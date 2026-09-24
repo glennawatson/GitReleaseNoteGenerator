@@ -3,14 +3,13 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 using GitReleaseNoteGenerator.Infrastructure;
 using GitReleaseNoteGenerator.Models;
 
 using Microsoft.Extensions.Logging;
-
-using Polly;
 
 using Refit;
 
@@ -20,6 +19,7 @@ namespace GitReleaseNoteGenerator.Services;
 /// Generates release notes by comparing a base ref (typically a tag from the latest release)
 /// with a head ref (typically the default branch) using the GitHub Compare API.
 /// </summary>
+[System.Diagnostics.DebuggerDisplay("ReleaseNoteGenerator: {_api}")]
 public sealed partial class ReleaseNoteGenerator
 {
     /// <summary>
@@ -40,8 +40,8 @@ public sealed partial class ReleaseNoteGenerator
     /// <summary>The logger for status and diagnostic messages.</summary>
     private readonly ILogger _logger;
 
-    /// <summary>The Polly resilience pipeline for retrying failed API calls.</summary>
-    private readonly ResiliencePipeline _retry;
+    /// <summary>Retries failed API calls.</summary>
+    private readonly RetryHandler _retry;
 
     /// <summary>Resolves commit contributors to canonical GitHub logins to avoid duplicate attribution.</summary>
     private readonly AuthorResolver _authorResolver;
@@ -53,7 +53,7 @@ public sealed partial class ReleaseNoteGenerator
     {
         _api = api;
         _logger = logger;
-        _retry = RetryHandler.CreatePipeline(logger);
+        _retry = new(logger);
         _authorResolver = new(api, logger);
     }
 
@@ -159,6 +159,7 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="newAuthors">Contributors since the base ref who did not appear earlier.</param>
     /// <param name="groupedCommits">Commits grouped by category.</param>
     /// <returns>Markdown-formatted release notes.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static string FormatReleaseNotes(
         string ownerLogin,
         string repoName,
@@ -238,6 +239,7 @@ public sealed partial class ReleaseNoteGenerator
     /// <summary>Appends the full changelog URL to the release notes.</summary>
     /// <param name="sb">The string builder to append to.</param>
     /// <param name="fullChangelogUrl">The URL to the GitHub compare view.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void AppendFullChangelog(StringBuilder sb, string fullChangelogUrl) =>
         sb.Append("\U0001f517 **Full Changelog**: ")
             .AppendLine(fullChangelogUrl)
@@ -366,6 +368,7 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="repoName">Repository name for commit links.</param>
     /// <param name="groupedCommits">Commits grouped by category.</param>
     /// <param name="resolvedAuthorsByCommit">Pre-resolved canonical authors keyed by commit SHA.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void AppendOtherSection(
         StringBuilder sb,
         string ownerLogin,
@@ -618,14 +621,20 @@ public sealed partial class ReleaseNoteGenerator
         }
 
         var basehead = $"{baseRef}...{headRef}";
-        var comparison = await _retry.ExecuteAsync(
-            static async (state, _) => await state.Api
-                .CompareAsync(state.Owner, state.RepoName, state.BaseHead)
-                .ConfigureAwait(false),
-            (Api: _api, Owner: owner, RepoName: repoName, BaseHead: basehead),
-            CancellationToken.None).ConfigureAwait(false);
+        var comparison = PagedEnumerable.Create(
+            1,
+            (page, cancellationToken) => _retry.ExecuteAsync(
+                static async (state, token) => await state.Api
+                    .CompareAsync(state.Owner, state.RepoName, state.BaseHead, CommitsPageSize, state.Page, token)
+                    .ConfigureAwait(false),
+                (Api: _api, Owner: owner, RepoName: repoName, BaseHead: basehead, Page: page),
+                cancellationToken).AsTask(),
+            static page => page.Commits,
+            static (page, number) => page.Commits is { Count: > 0 } && number * CommitsPageSize < page.TotalCommits
+                ? PageContinuation.To(number + 1)
+                : PageContinuation<int>.End);
 
-        return comparison.Commits ?? [];
+        return await CollectCommitsAsync(comparison.WithMaxPages(MaxPaginationPages)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -636,51 +645,64 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="repoName">The repository name.</param>
     /// <param name="headRef">The head ref to list commits from.</param>
     /// <returns>All commits reachable from the head ref, up to the pagination cap.</returns>
-    private async Task<IReadOnlyCollection<GitHubCommit>> GetAllCommitsAsync(
-        string owner,
-        string repoName,
-        string headRef)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Task<List<GitHubCommit>> GetAllCommitsAsync(string owner, string repoName, string headRef) =>
+        CollectCommitsAsync(EnumerateCommits(owner, repoName, headRef));
+
+    /// <summary>Drains a paged commit sequence into a list, logging when it was cut off by the page cap.</summary>
+    /// <typeparam name="TPage">The page type the sequence fetches.</typeparam>
+    /// <param name="commits">The paged commit sequence.</param>
+    /// <returns>The commits in the order the API returned them.</returns>
+    private async Task<List<GitHubCommit>> CollectCommitsAsync<TPage>(PagedEnumerable<TPage, GitHubCommit> commits)
     {
         var all = new List<GitHubCommit>();
-        var page = 1;
-
-        while (page <= MaxPaginationPages)
+        await foreach (var commit in commits.ConfigureAwait(false))
         {
-            var commits = await FetchCommitPageAsync(owner, repoName, headRef, page).ConfigureAwait(false);
-            if (commits.Count == 0)
-            {
-                break;
-            }
-
-            all.AddRange(commits);
-            page++;
+            all.Add(commit);
         }
 
-        if (page > MaxPaginationPages)
-        {
-            LogMaxPaginationReached(MaxPaginationPages);
-        }
-
+        LogIfPaginationCapReached(all.Count);
         return all;
     }
 
-    /// <summary>Fetches a single page of commits reachable from a ref, wrapped in the shared retry pipeline.</summary>
+    /// <summary>
+    /// Creates a lazy sequence of the commits reachable from a ref, one request per page, each wrapped in the shared
+    /// retry pipeline so a transient failure retries that page rather than the whole walk.
+    /// </summary>
     /// <param name="owner">The repository owner.</param>
     /// <param name="repoName">The repository name.</param>
     /// <param name="sha">The ref SHA or name to list from, or null for the default branch.</param>
-    /// <param name="page">The 1-based page number.</param>
-    /// <returns>The commits on the requested page.</returns>
-    private async Task<IReadOnlyList<GitHubCommit>> FetchCommitPageAsync(
+    /// <returns>A sequence that requests nothing until it is enumerated, capped at <see cref="MaxPaginationPages"/> pages.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private PagedEnumerable<IReadOnlyList<GitHubCommit>, GitHubCommit> EnumerateCommits(
         string owner,
         string repoName,
-        string? sha,
-        int page) =>
-        await _retry.ExecuteAsync(
-            static async (state, _) => await state.Api
-                .GetCommitsAsync(state.Owner, state.RepoName, state.Sha, CommitsPageSize, state.Page)
-                .ConfigureAwait(false),
-            (Api: _api, Owner: owner, RepoName: repoName, Sha: sha, Page: page),
-            CancellationToken.None).ConfigureAwait(false);
+        string? sha) =>
+        PagedEnumerable.Create(
+            1,
+            (page, cancellationToken) => _retry.ExecuteAsync(
+                static async (state, token) => await state.Api
+                    .GetCommitsAsync(state.Owner, state.RepoName, state.Sha, CommitsPageSize, state.Page, token)
+                    .ConfigureAwait(false),
+                (Api: _api, Owner: owner, RepoName: repoName, Sha: sha, Page: page),
+                cancellationToken).AsTask(),
+            static page => page,
+            static (page, number) => page.Count < CommitsPageSize
+                ? PageContinuation<int>.End
+                : PageContinuation.To(number + 1))
+        .WithMaxPages(MaxPaginationPages);
+
+    /// <summary>Logs a warning when a commit walk returned as many commits as the page cap allows.</summary>
+    /// <param name="commitCount">The number of commits the walk returned.</param>
+    private void LogIfPaginationCapReached(int commitCount)
+    {
+        if (commitCount < MaxPaginationPages * CommitsPageSize)
+        {
+            return;
+        }
+
+        LogMaxPaginationReached(MaxPaginationPages);
+    }
 
     /// <summary>Fetches all authors reachable from a given ref by paginating through the commit history.</summary>
     /// <param name="owner">The repository owner.</param>
@@ -693,40 +715,25 @@ public sealed partial class ReleaseNoteGenerator
         string? refShaOrName)
     {
         var authors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var page = 1;
+        var commitCount = 0;
 
-        while (page <= MaxPaginationPages)
+        // Resolve cache-only: the (small) set of commits since the last release has already
+        // been resolved with the search API, priming the email->login cache. Walking the full
+        // history — potentially tens of thousands of commits — must not issue a search request
+        // per historical contributor, or the strict search rate limit is quickly exhausted.
+        await foreach (var commit in EnumerateCommits(owner, repoName, refShaOrName).ConfigureAwait(false))
         {
-            var commits = await FetchCommitPageAsync(owner, repoName, refShaOrName, page).ConfigureAwait(false);
-
-            if (commits.Count == 0)
+            commitCount++;
+            var resolved = await _authorResolver
+                .GetResolvedAuthorsAsync(commit, allowSearch: false)
+                .ConfigureAwait(false);
+            foreach (var author in resolved)
             {
-                break;
+                _ = authors.Add(author.Value);
             }
-
-            // Resolve cache-only: the (small) set of commits since the last release has already
-            // been resolved with the search API, priming the email->login cache. Walking the full
-            // history — potentially tens of thousands of commits — must not issue a search request
-            // per historical contributor, or the strict search rate limit is quickly exhausted.
-            foreach (var commit in commits)
-            {
-                var resolved = await _authorResolver
-                    .GetResolvedAuthorsAsync(commit, allowSearch: false)
-                    .ConfigureAwait(false);
-                foreach (var author in resolved)
-                {
-                    _ = authors.Add(author.Value);
-                }
-            }
-
-            page++;
         }
 
-        if (page > MaxPaginationPages)
-        {
-            LogMaxPaginationReached(MaxPaginationPages);
-        }
-
+        LogIfPaginationCapReached(commitCount);
         return authors;
     }
 }
