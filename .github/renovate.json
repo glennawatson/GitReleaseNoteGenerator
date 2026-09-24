@@ -1,0 +1,87 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":separateMajorReleases",
+    ":combinePatchMinorReleases",
+    "group:dotnetMonorepo",
+    "security:openssf-scorecard"
+  ],
+  "mode": "full",
+  "timezone": "Australia/Melbourne",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 10,
+  "labels": ["dependencies"],
+  "recreateWhen": "auto",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "build",
+  "semanticCommitScope": "deps",
+  "commitMessageAction": "bump",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "schedule": ["at any time"],
+    "labels": ["dependencies", "security"]
+  },
+  "packageRules": [
+    {
+      "description": "Logging and its console provider ship from dotnet/runtime together; mixed versions pull two runtimes' worth of abstractions.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["/^Microsoft\\.Extensions\\.Logging(\\.|$)/"],
+      "groupName": "Microsoft.Extensions.Logging"
+    },
+    {
+      "description": "Directory.Packages.props pins the runtime packages per target framework. The net10.0 line stays on 10.x.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["/^Microsoft\\.Extensions\\./"],
+      "matchCurrentVersion": "/^10\\./",
+      "allowedVersions": "/^10\\./"
+    },
+    {
+      "description": "Directory.Packages.props pins the runtime packages per target framework. The net11.0 line stays on 11.x; a newer major means adding a target framework.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["/^Microsoft\\.Extensions\\./"],
+      "matchCurrentVersion": "/^11\\./",
+      "allowedVersions": "/^11\\./"
+    },
+    {
+      "description": "StyleSharp, PerformanceSharp and SecuritySharp ship from one pipeline and share $(RoslynCommonAnalyzersVersion), so one PR moves the property.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["/^(StyleSharp|PerformanceSharp|SecuritySharp)\\.Analyzers$/"],
+      "groupName": "RoslynCommonAnalyzers",
+      "labels": ["dependencies", "build-gate"]
+    },
+    {
+      "description": "MinVer decides the shipped version; the release actions stamp the same versions with minver-cli.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["/^MinVer$/"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Pinning names the group it pins rather than the generic dependencies topic.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["pin", "pinDigest"],
+      "group": {
+        "commitMessageTopic": "GitHub Actions digests"
+      }
+    },
+    {
+      "description": "Minor, patch and digest updates to actions from GitHub merge automatically.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["/^actions\\//", "/^github\\//"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Digest updates to the ReactiveUI signing image merge automatically.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/reactiveui/certum-signer"],
+      "matchUpdateTypes": ["digest", "pin", "pinDigest"],
+      "automerge": true
+    }
+  ]
+}
