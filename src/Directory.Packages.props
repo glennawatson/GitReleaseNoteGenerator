@@ -11,7 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="System.CommandLine" Version="3.0.0-rc.1.26425.128" />
-    <PackageVersion Include="Refit" Version="16.1.0" />
+    <PackageVersion Include="Refit" Version="16.3.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="TUnit" Version="1.69.0" />
