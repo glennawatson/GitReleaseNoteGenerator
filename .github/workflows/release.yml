@@ -205,7 +205,7 @@ jobs:
       packages: read
     # SimplySign has no headless API; certum-sign drives its GUI under Xvfb, which needs Linux.
     container:
-      image: ghcr.io/reactiveui/certum-signer:latest@sha256:2c03eb55111b6194f1fa482a1ccaeadeb4bc814ddc9235d55dbcd730802fcd7a
+      image: ghcr.io/reactiveui/certum-signer:latest@sha256:ee5d4af12d51a9bd75e7008df78880cb7d352a841573647674f70cb587809554
     # Composite actions cannot declare secret inputs, so certum-sign reads these from env.
     env:
       CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
