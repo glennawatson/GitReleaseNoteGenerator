@@ -56,13 +56,6 @@ jobs:
         with:
           stamp-version: 'false'
 
-      - name: Validate version inputs
-        uses: glennawatson/actions-common/.github/actions/release-inputs-validate@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          bump: ${{ inputs.bump != '(pick one)' && inputs.bump || '' }}
-          pre-release: ${{ inputs.preRelease }}
-          version-override: ${{ inputs.versionOverride }}
-
       # The create-release job creates the tag, so a failed build or sign leaves no orphan tag.
       - name: Compute version and tag
         if: inputs.bump != '(pick one)' && inputs.versionOverride == ''
