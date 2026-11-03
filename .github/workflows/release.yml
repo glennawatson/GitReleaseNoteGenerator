@@ -51,26 +51,17 @@ jobs:
           ref: ${{ inputs.sourceRef }}
           fetch-depth: 0
 
-      # Historical source refs use the scripts from the workflow's commit.
-      - name: Checkout release scripts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          path: .release-scripts
-          sparse-checkout: .github/scripts
-
       - name: Setup .NET Environment
         uses: glennawatson/actions-common/.github/actions/dotnet-environment@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           stamp-version: 'false'
 
       - name: Validate version inputs
-        shell: bash
-        working-directory: ${{ runner.temp }}
-        env:
-          BUMP: ${{ inputs.bump }}
-          PRE_RELEASE: ${{ inputs.preRelease }}
-          VERSION_OVERRIDE: ${{ inputs.versionOverride }}
-        run: dotnet run --file "$GITHUB_WORKSPACE/.release-scripts/.github/scripts/validate-release-inputs.cs" -- "$BUMP" "$PRE_RELEASE" "$VERSION_OVERRIDE"
+        uses: glennawatson/actions-common/.github/actions/release-inputs-validate@4882558c56a8879548981c0dd01f99363d00b332 # main
+        with:
+          bump: ${{ inputs.bump != '(pick one)' && inputs.bump || '' }}
+          pre-release: ${{ inputs.preRelease }}
+          version-override: ${{ inputs.versionOverride }}
 
       # The create-release job creates the tag, so a failed build or sign leaves no orphan tag.
       - name: Compute version and tag
@@ -193,18 +184,11 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      - name: Checkout release scripts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          path: .release-scripts
-          sparse-checkout: .github/scripts
-
       - name: Push to NuGet
         shell: bash
-        working-directory: ${{ runner.temp }}
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        run: dotnet run --file "$GITHUB_WORKSPACE/.release-scripts/.github/scripts/push-nuget-packages.cs"
+        run: dotnet nuget push "signed/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY"
 
   create-release:
     needs: [ build, publish-nuget ]
