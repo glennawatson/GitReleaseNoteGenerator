@@ -3,10 +3,8 @@ name: Build
 on:
   push:
     branches: [ main ]
-    paths-ignore: [ '.github/**' ]
   pull_request:
     branches: [ main ]
-    paths-ignore: [ '.github/**' ]
 
 permissions:
   contents: read
@@ -22,24 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ windows-latest, ubuntu-latest, macos-latest ]
-    runs-on: ${{ matrix.os }}
-    env:
-      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup .NET Environment
-        uses: ./.github/actions/dotnet-environment
-
-      - name: Build
-        uses: ./.github/actions/dotnet-build
-        with:
-          solution-file: GitReleaseNoteGenerator.slnx
-
-      - name: Test
-        uses: ./.github/actions/dotnet-test
-        with:
-          solution-file: GitReleaseNoteGenerator.slnx
+    uses: glennawatson/actions-common/.github/workflows/workflow-common-build-and-test.yml@4882558c56a8879548981c0dd01f99363d00b332 # main
+    with:
+      runner: ${{ matrix.os }}
+      solutionFile: GitReleaseNoteGenerator.slnx
+      minverTagPrefix: v
+      # The .NET 10 SDK supplies the runtime needed by the net10.0 tests.
+      dotnetVersions: |
+        10.0.x
+        11.0.x

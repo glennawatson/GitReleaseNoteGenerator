@@ -3,68 +3,28 @@ name: SonarCloud
 on:
   push:
     branches: [ main ]
-    paths-ignore: [ '.github/**' ]
   pull_request:
     branches: [ main ]
-    paths-ignore: [ '.github/**' ]
 
 permissions:
   contents: read
 
-concurrency:
-  group: sonarcloud-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   sonarcloud:
-    name: Build, test, and analyze
-    # Fork PRs get no SONAR_TOKEN, so they are skipped rather than failed.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    env:
-      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: 1
-      # Composite actions cannot declare secret inputs, so the sonarcloud action reads this from env.
+    uses: glennawatson/actions-common/.github/workflows/workflow-common-sonarcloud.yml@4882558c56a8879548981c0dd01f99363d00b332 # main
+    with:
+      solutionFile: GitReleaseNoteGenerator.slnx
+      runsOn: ubuntu-latest
+      minverMinimumMajorMinor: '1.0'
+      # The .NET 10 SDK supplies the runtime needed by the net10.0 tests.
+      dotnetVersions: |
+        10.0.x
+        11.0.x
+      sonarProjectKey: glennawatson_GitReleaseNoteGenerator
+      sonarOrganization: glennawatson
+      sonarExclusions: '**/tests/**'
+      sonarCoverageExclusions: '**/tests/**'
+      sonarCpdExclusions: '**/tests/**'
+      sonarTestExclusions: '**/tests/**'
+    secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup .NET Environment
-        id: environment
-        uses: ./.github/actions/dotnet-environment
-
-      - name: SonarCloud begin
-        uses: ./.github/actions/sonarcloud
-        with:
-          mode: begin
-          project-key: glennawatson_GitReleaseNoteGenerator
-          organization: glennawatson
-          version: ${{ steps.environment.outputs.version-semver2 }}
-          exclusions: '**/tests/**'
-          coverage-exclusions: '**/tests/**'
-          cpd-exclusions: '**/tests/**'
-          test-exclusions: '**/tests/**'
-          working-directory: src
-
-      - name: Build
-        uses: ./.github/actions/dotnet-build
-        with:
-          solution-file: GitReleaseNoteGenerator.slnx
-
-      - name: Test
-        uses: ./.github/actions/dotnet-test
-        with:
-          solution-file: GitReleaseNoteGenerator.slnx
-
-      - name: SonarCloud end
-        # A failed build or test still uploads partial analysis.
-        if: always()
-        uses: ./.github/actions/sonarcloud
-        with:
-          mode: end
-          project-key: glennawatson_GitReleaseNoteGenerator
-          working-directory: src

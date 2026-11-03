@@ -43,7 +43,7 @@ jobs:
       semver2: ${{ steps.minver.outputs.SemVer2 }}
       tag: ${{ steps.tagname.outputs.tag }}
       prerelease: ${{ steps.tagname.outputs.prerelease }}
-      sourceSha: ${{ steps.sourcesha.outputs.sha }}
+      sourceSha: ${{ steps.tagname.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -51,68 +51,32 @@ jobs:
           ref: ${{ inputs.sourceRef }}
           fetch-depth: 0
 
-      # The source ref may predate these actions, so they are taken from the commit this workflow runs on.
-      - name: Checkout release actions
+      # Historical source refs use the scripts from the workflow's commit.
+      - name: Checkout release scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          path: .release-actions
-          sparse-checkout: .github/actions
-
-      - name: Use the release actions
-        shell: bash
-        run: |
-          rm -rf .github/actions
-          mkdir -p .github
-          cp -r .release-actions/.github/actions .github/actions
+          path: .release-scripts
+          sparse-checkout: .github/scripts
 
       - name: Setup .NET Environment
-        uses: ./.github/actions/dotnet-environment
+        uses: glennawatson/actions-common/.github/actions/dotnet-environment@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           stamp-version: 'false'
 
-      - name: Resolve built commit SHA
-        id: sourcesha
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: Validate version inputs
         shell: bash
+        working-directory: ${{ runner.temp }}
         env:
           BUMP: ${{ inputs.bump }}
           PRE_RELEASE: ${{ inputs.preRelease }}
           VERSION_OVERRIDE: ${{ inputs.versionOverride }}
-        run: |
-          cd "$RUNNER_TEMP" && dotnet run - -- "$BUMP" "$PRE_RELEASE" "$VERSION_OVERRIDE" <<'CS'
-          if (args is not [var choice, var preRelease, var versionOverride])
-          {
-              Console.WriteLine("::error::Expected the bump, pre-release and version override arguments.");
-              return 2;
-          }
-
-          var bump = choice is "(pick one)" ? string.Empty : choice;
-          string? error = (bump, preRelease, versionOverride) switch
-          {
-              ("", _, "") => "Pick a bump level (major, minor or patch), or give a version override.",
-              (not "", _, not "") => "'bump' and 'versionOverride' are mutually exclusive: set exactly one.",
-              (_, not "", not "") => "'preRelease' cannot be combined with 'versionOverride': put any pre-release suffix in the override itself.",
-              (_, _, ['v' or 'V', ..]) => "Give 'versionOverride' without the 'v' tag prefix; the tag adds it.",
-              _ => null,
-          };
-
-          if (error is not null)
-          {
-              Console.WriteLine($"::error::{error}");
-              return 1;
-          }
-
-          return 0;
-          CS
+        run: dotnet run --file "$GITHUB_WORKSPACE/.release-scripts/.github/scripts/validate-release-inputs.cs" -- "$BUMP" "$PRE_RELEASE" "$VERSION_OVERRIDE"
 
       # The create-release job creates the tag, so a failed build or sign leaves no orphan tag.
       - name: Compute version and tag
         if: inputs.bump != '(pick one)' && inputs.versionOverride == ''
         id: bump
-        uses: ./.github/actions/compute-version-and-tag
+        uses: glennawatson/actions-common/.github/actions/compute-version-and-tag@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           bump: ${{ inputs.bump }}
           tag-prefix: 'v'
@@ -122,49 +86,21 @@ jobs:
       # compute-version-and-tag rejects an existing bump tag; an existing override tag is rejected here.
       - name: Resolve release tag
         id: tagname
-        shell: bash
-        env:
-          BUMP_TAG: ${{ steps.bump.outputs.tag }}
-          BUMP_PRERELEASE: ${{ steps.bump.outputs.prerelease }}
-          VERSION_OVERRIDE: ${{ inputs.versionOverride }}
-        run: |
-          cd "$RUNNER_TEMP" && dotnet run - -- "$BUMP_TAG" "$BUMP_PRERELEASE" "$VERSION_OVERRIDE" <<'CS'
-          using System.Diagnostics;
-          using static System.Environment;
-
-          if (args is not [var bumpTag, var bumpPrerelease, var versionOverride])
-          {
-              Console.WriteLine("::error::Expected the bump tag, bump pre-release and version override arguments.");
-              return 2;
-          }
-
-          var outputs = GetEnvironmentVariable("GITHUB_OUTPUT")!;
-          if (versionOverride is "")
-          {
-              File.AppendAllLines(outputs, [$"tag={bumpTag}", $"prerelease={(bumpPrerelease is "" ? "false" : bumpPrerelease)}"]);
-              return 0;
-          }
-
-          var tag = $"v{versionOverride}";
-          Directory.SetCurrentDirectory(GetEnvironmentVariable("GITHUB_WORKSPACE")!);
-          if (Process.Run("git", ["rev-parse", "-q", "--verify", $"refs/tags/{tag}"], silent: true) is { ExitCode: 0 })
-          {
-              Console.WriteLine($"::error::Tag {tag} already exists. Refusing to re-release an existing version.");
-              return 1;
-          }
-
-          File.AppendAllLines(outputs, [$"tag={tag}", $"prerelease={(versionOverride.Contains('-') ? "true" : "false")}"]);
-          return 0;
-          CS
+        uses: glennawatson/actions-common/.github/actions/release-tag-resolve@4882558c56a8879548981c0dd01f99363d00b332 # main
+        with:
+          bump-tag: ${{ steps.bump.outputs.tag }}
+          bump-prerelease: ${{ steps.bump.outputs.prerelease }}
+          version-override: ${{ inputs.versionOverride }}
+          tag-prefix: v
 
       - name: Stamp version with MinVer
         id: minver
-        uses: ./.github/actions/minver
+        uses: glennawatson/actions-common/.github/actions/minver@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           version-override: ${{ inputs.versionOverride != '' && inputs.versionOverride || steps.bump.outputs.version }}
 
       - name: Build
-        uses: ./.github/actions/dotnet-build
+        uses: glennawatson/actions-common/.github/actions/dotnet-build@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           solution-file: GitReleaseNoteGenerator.slnx
 
@@ -174,7 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.minver.outputs.SemVer2 }}
-        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --configuration Release --framework net10.0 -- --release-version "$RELEASE_VERSION" --output-file "${GITHUB_WORKSPACE}/release-notes.md"
+        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --configuration Release --framework net11.0 -- --release-version "$RELEASE_VERSION" --output-file "${GITHUB_WORKSPACE}/release-notes.md"
 
       - name: Pack NuGet packages
         shell: bash
@@ -182,14 +118,14 @@ jobs:
         run: dotnet pack GitReleaseNoteGenerator.slnx --no-build --configuration Release -o "${GITHUB_WORKSPACE}/packages"
 
       - name: Upload unsigned packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unsigned-nuget
           path: packages/*.nupkg
           if-no-files-found: error
 
       - name: Upload release notes
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-notes
           path: release-notes.md
@@ -202,34 +138,30 @@ jobs:
       name: release
     permissions:
       contents: read
-      packages: read
-    # SimplySign has no headless API; certum-sign drives its GUI under Xvfb, which needs Linux.
-    container:
-      image: ghcr.io/reactiveui/certum-signer:latest@sha256:f15c2913f472c60b314b6487829dd559b5eea8fa92ae2add895ba1b0e183380b
     # Composite actions cannot declare secret inputs, so certum-sign reads these from env.
     env:
       CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
       CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
       CERTUM_CERT_FINGERPRINT: ${{ secrets.CERTUM_CERT_FINGERPRINT }}
     steps:
-      - name: Checkout release actions
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Setup .NET Environment
+        uses: glennawatson/actions-common/.github/actions/dotnet-environment@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
-          sparse-checkout: .github/actions
+          stamp-version: 'false'
 
       - name: Download unsigned packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: unsigned-nuget
           path: signed
 
       - name: Sign packages with Certum SimplySign
-        uses: ./.github/actions/certum-sign
+        uses: glennawatson/actions-common/.github/actions/certum-sign@4882558c56a8879548981c0dd01f99363d00b332 # main
         with:
           packages-glob: 'signed/*.nupkg'
 
       - name: Upload signed packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: signed-nuget
           path: signed/*.nupkg
@@ -250,7 +182,7 @@ jobs:
           dotnet-version: 11.0.x
 
       - name: Download signed packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: signed-nuget
           path: signed
@@ -261,32 +193,18 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }}
 
+      - name: Checkout release scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: .release-scripts
+          sparse-checkout: .github/scripts
+
       - name: Push to NuGet
         shell: bash
+        working-directory: ${{ runner.temp }}
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        run: |
-          cd "$RUNNER_TEMP" && dotnet run - <<'CS'
-          using System.Diagnostics;
-          using static System.Environment;
-
-          var packages = Directory.GetFiles(Path.Combine(GetEnvironmentVariable("GITHUB_WORKSPACE")!, "signed"), "*.nupkg");
-          if (packages is [])
-          {
-              Console.WriteLine("::error::No signed packages were downloaded.");
-              return 1;
-          }
-
-          foreach (var package in packages.Order(StringComparer.Ordinal))
-          {
-              if (Process.Run("dotnet", ["nuget", "push", package, "--source", "https://api.nuget.org/v3/index.json", "--api-key", GetEnvironmentVariable("NUGET_API_KEY")!]) is { ExitCode: not 0 } push)
-              {
-                  return push.ExitCode;
-              }
-          }
-
-          return 0;
-          CS
+        run: dotnet run --file "$GITHUB_WORKSPACE/.release-scripts/.github/scripts/push-nuget-packages.cs"
 
   create-release:
     needs: [ build, publish-nuget ]
@@ -300,42 +218,25 @@ jobs:
           dotnet-version: 11.0.x
 
       - name: Download signed packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: signed-nuget
           path: signed
 
       - name: Download release notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-notes
           path: .
 
       # Also creates the tag, pinned by --target to the commit the build job built.
       - name: Create GitHub Release
-        shell: bash
+        uses: glennawatson/actions-common/.github/actions/github-release-create@4882558c56a8879548981c0dd01f99363d00b332 # main
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.build.outputs.tag }}
-          TARGET: ${{ needs.build.outputs.sourceSha }}
-          TITLE: ${{ needs.build.outputs.semver2 }}
-          PRERELEASE: ${{ needs.build.outputs.prerelease }}
-        run: |
-          cd "$RUNNER_TEMP" && dotnet run - -- "$REPO" "$TAG" "$TARGET" "$TITLE" "$PRERELEASE" <<'CS'
-          using System.Diagnostics;
-          using static System.Environment;
-
-          if (args is not [var repository, var tag, var target, var title, var prerelease])
-          {
-              Console.WriteLine("::error::Expected the repository, tag, target, title and pre-release arguments.");
-              return 2;
-          }
-
-          Directory.SetCurrentDirectory(GetEnvironmentVariable("GITHUB_WORKSPACE")!);
-
-          string[] flags = prerelease is "true" ? ["--prerelease"] : [];
-          return Process.Run(
-              "gh",
-              ["release", "create", tag, "--repo", repository, "--target", target, "--title", title, "--notes-file", "release-notes.md", .. flags, .. Directory.GetFiles("signed", "*.nupkg")]).ExitCode;
-          CS
+        with:
+          repository: ${{ github.repository }}
+          tag: ${{ needs.build.outputs.tag }}
+          target: ${{ needs.build.outputs.sourceSha }}
+          title: ${{ needs.build.outputs.semver2 }}
+          prerelease: ${{ needs.build.outputs.prerelease }}
