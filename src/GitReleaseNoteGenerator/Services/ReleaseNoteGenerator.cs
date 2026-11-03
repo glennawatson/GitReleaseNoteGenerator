@@ -64,13 +64,34 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="baseRef">Optional base ref (tag) to compare from. If null, uses the latest release tag.</param>
     /// <param name="headRef">Optional head ref (branch) to compare to. If null, uses the default branch.</param>
     /// <returns>The generated release notes in Markdown format.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Task<string> GenerateAsync(
+        string owner,
+        string repoName,
+        string version,
+        string? baseRef,
+        string? headRef) =>
+        GenerateAsync(owner, repoName, version, baseRef, headRef, new(), CancellationToken.None);
+
+    /// <summary>Generates release notes with an optional tag prefix and exact release tag.</summary>
+    /// <param name="owner">Repository owner.</param>
+    /// <param name="repoName">Repository name.</param>
+    /// <param name="version">The version string for the release.</param>
+    /// <param name="baseRef">An explicit base ref that overrides stream selection.</param>
+    /// <param name="headRef">The built commit or comparison head, or null for the default branch.</param>
+    /// <param name="stream">The stream prefix and optional exact new release tag.</param>
+    /// <param name="cancellationToken">A token that cancels release discovery.</param>
+    /// <returns>The generated release notes in Markdown format.</returns>
     public async Task<string> GenerateAsync(
         string owner,
         string repoName,
         string version,
         string? baseRef,
-        string? headRef)
+        string? headRef,
+        ReleaseStreamOptions stream,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         LogGenerating(owner, repoName, version);
 
         var repo = await _retry.ExecuteAsync(
@@ -78,9 +99,10 @@ public sealed partial class ReleaseNoteGenerator
                 .GetRepositoryAsync(state.Owner, state.RepoName)
                 .ConfigureAwait(false),
             (Api: _api, Owner: owner, RepoName: repoName),
-            CancellationToken.None).ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
 
-        var resolvedBaseRef = await ResolveBaseRefAsync(owner, repoName, baseRef).ConfigureAwait(false);
+        var releaseTag = stream.ResolveReleaseTag(version, null);
+        var resolvedBaseRef = await ResolveBaseRefAsync(owner, repoName, baseRef, stream.TagPrefix, releaseTag, cancellationToken).ConfigureAwait(false);
         var resolvedHeadRef = headRef ?? repo.DefaultBranch ?? DefaultHeadRef;
 
         LogComparing(resolvedBaseRef ?? "(all history)", resolvedHeadRef);
@@ -113,7 +135,8 @@ public sealed partial class ReleaseNoteGenerator
 
         var groupedCommits = CommitCategorizer.GroupByCategory(commits);
 
-        var headTag = AlignVersionWithBaseRefPrefix(version, resolvedBaseRef);
+        var headTag = stream.ResolveReleaseTag(version, resolvedBaseRef);
+
         var fullChangelogUrl = !string.IsNullOrEmpty(resolvedBaseRef)
             ? string.Create(
                 CultureInfo.InvariantCulture,
@@ -576,12 +599,26 @@ public sealed partial class ReleaseNoteGenerator
     /// <param name="owner">The repository owner.</param>
     /// <param name="repoName">The repository name.</param>
     /// <param name="baseRef">The explicit base ref, or null to auto-detect.</param>
+    /// <param name="tagPrefix">The release stream prefix, or null for the repository default.</param>
+    /// <param name="releaseTag">The new release tag to exclude from discovery.</param>
+    /// <param name="cancellationToken">A token that cancels release discovery.</param>
     /// <returns>The resolved base ref, or null if no releases exist.</returns>
-    private async Task<string?> ResolveBaseRefAsync(string owner, string repoName, string? baseRef)
+    private async Task<string?> ResolveBaseRefAsync(
+        string owner,
+        string repoName,
+        string? baseRef,
+        string? tagPrefix,
+        string releaseTag,
+        CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(baseRef))
         {
             return baseRef;
+        }
+
+        if (!string.IsNullOrEmpty(tagPrefix))
+        {
+            return await ResolveStreamBaseRefAsync(owner, repoName, tagPrefix, releaseTag, cancellationToken).ConfigureAwait(false);
         }
 
         try
@@ -591,7 +628,7 @@ public sealed partial class ReleaseNoteGenerator
                     .GetLatestReleaseAsync(state.Owner, state.RepoName)
                     .ConfigureAwait(false),
                 (Api: _api, Owner: owner, RepoName: repoName),
-                CancellationToken.None).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
 
             LogLatestRelease(latestRelease?.TagName);
             return latestRelease?.TagName;
@@ -601,6 +638,61 @@ public sealed partial class ReleaseNoteGenerator
             LogNoExistingReleases();
             return null;
         }
+    }
+
+    /// <summary>Finds the most recently published stable release in the selected stream.</summary>
+    /// <param name="owner">Repository owner.</param>
+    /// <param name="repoName">Repository name.</param>
+    /// <param name="tagPrefix">The exact, case-sensitive tag prefix.</param>
+    /// <param name="releaseTag">The new release tag to exclude.</param>
+    /// <param name="cancellationToken">A token that cancels release discovery.</param>
+    /// <returns>The matching tag, or null for the stream's first release.</returns>
+    private async Task<string?> ResolveStreamBaseRefAsync(
+        string owner,
+        string repoName,
+        string tagPrefix,
+        string releaseTag,
+        CancellationToken cancellationToken)
+    {
+        var releases = PagedEnumerable.Create(
+            1,
+            (page, token) => _retry.ExecuteAsync(
+                static async (state, requestToken) => await state.Api
+                    .GetReleasesAsync(state.Owner, state.RepoName, CommitsPageSize, state.Page, requestToken)
+                    .ConfigureAwait(false),
+                (Api: _api, Owner: owner, RepoName: repoName, Page: page),
+                token).AsTask(),
+            static page => page,
+            static (page, number) => page.Count < CommitsPageSize
+                ? PageContinuation<int>.End
+                : PageContinuation.To(number + 1));
+
+        GitHubRelease? latest = null;
+        DateTimeOffset latestPublication = default;
+        await foreach (var release in releases.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (release is not { Draft: false, Prerelease: false, PublishedAt: { } publishedAt, TagName: not null }
+                || !release.TagName.StartsWith(tagPrefix, StringComparison.Ordinal)
+                || StringComparer.Ordinal.Equals(release.TagName, releaseTag)
+                || (latest is not null && publishedAt <= latestPublication))
+            {
+                continue;
+            }
+
+            latest = release;
+            latestPublication = publishedAt;
+        }
+
+        if (latest is null)
+        {
+            LogNoExistingReleases();
+        }
+        else
+        {
+            LogLatestRelease(latest.TagName);
+        }
+
+        return latest?.TagName;
     }
 
     /// <summary>Fetches commits between the base ref and head ref using the Compare or GetAll API.</summary>

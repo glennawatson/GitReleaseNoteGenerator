@@ -102,16 +102,20 @@ public class GenerateCommandTests
     }
 
     /// <summary>Tests the full happy path: a valid invocation writes release notes to the output file.</summary>
+    /// <param name="useStream">Whether to select a release stream and exact tag.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
-    public async Task InvokeWithValidArgumentsWritesReleaseNotes()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task InvokeWithValidArgumentsWritesReleaseNotes(bool useStream)
     {
         var handler = HappyPathHandler();
         var outputFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        string[] streamArguments = useStream ? ["--tag-prefix", "binding-v", "--release-tag", "binding-v9.9.9", "--head-ref", "built-sha"] : [];
         try
         {
             var exitCode = await RunAsync(
-                [TokenArg, Token, OwnerArg, Owner, RepoArg, Repo, VersionArg, Version, "--output-file", outputFile],
+                [TokenArg, Token, OwnerArg, Owner, RepoArg, Repo, VersionArg, Version, "--output-file", outputFile, .. streamArguments],
                 token: null,
                 repository: null,
                 clientFactory: token => GitHubClientFactory.Create(token, handler));
@@ -121,6 +125,7 @@ public class GenerateCommandTests
             var notes = await File.ReadAllTextAsync(outputFile);
             await Assert.That(notes).Contains("What's Changed");
             await Assert.That(notes).Contains("@janedev");
+            await Assert.That(notes).Contains(useStream ? "commits/binding-v9.9.9" : "commits/v9.9.9");
         }
         finally
         {

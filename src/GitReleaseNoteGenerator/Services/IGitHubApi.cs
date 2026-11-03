@@ -28,6 +28,21 @@ public interface IGitHubApi
     [Get("/repos/{owner}/{repo}/releases/latest")]
     Task<GitHubRelease> GetLatestReleaseAsync(string owner, string repo);
 
+    /// <summary>Lists a page of releases for selecting a stream-specific comparison base.</summary>
+    /// <param name="owner">The repository owner.</param>
+    /// <param name="repo">The repository name.</param>
+    /// <param name="perPage">The page size, up to 100.</param>
+    /// <param name="page">The 1-based page number.</param>
+    /// <param name="cancellationToken">A token that cancels the request.</param>
+    /// <returns>The releases on the requested page.</returns>
+    [Get("/repos/{owner}/{repo}/releases")]
+    Task<IReadOnlyList<GitHubRelease>> GetReleasesAsync(
+        string owner,
+        string repo,
+        [AliasAs("per_page")] int perPage,
+        [AliasAs("page")] int page,
+        CancellationToken cancellationToken);
+
     /// <summary>Compares two refs and returns one page of the commits between them.</summary>
     /// <param name="owner">The repository owner.</param>
     /// <param name="repo">The repository name.</param>

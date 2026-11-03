@@ -15,6 +15,46 @@ public class CommandArgumentResolverTests
     /// <summary>The GITHUB_REPOSITORY environment variable name.</summary>
     private const string RepositoryEnv = "GITHUB_REPOSITORY";
 
+    /// <summary>The stream prefix used in command parsing tests.</summary>
+    private const string BindingPrefix = "binding-v";
+
+    /// <summary>The exact tag used in command parsing tests.</summary>
+    private const string BindingTag = "binding-v9.2.0";
+
+    /// <summary>Verifies that stream options are accepted alongside the existing release arguments.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task ReadValuesAcceptsReleaseStreamOptions()
+    {
+        var options = CommandOptionsFactory.CreateOptions();
+        var root = CommandOptionsFactory.CreateRootCommand(options);
+        var result = root.Parse(["--release-version", "9.2.0", "--tag-prefix", BindingPrefix, "--release-tag", BindingTag]);
+
+        await Assert.That(result.Errors).IsEmpty();
+
+        var values = CommandArgumentResolver.ReadValues(result, options);
+        var arguments = CommandArgumentResolver.CreateArguments(values);
+
+        await Assert.That(values.TagPrefix).IsEqualTo(BindingPrefix);
+        await Assert.That(values.ReleaseTag).IsEqualTo(BindingTag);
+        await Assert.That(arguments.TagPrefix).IsEqualTo(BindingPrefix);
+        await Assert.That(arguments.ReleaseTag).IsEqualTo(BindingTag);
+    }
+
+    /// <summary>Verifies the output-name fallback when the option has no default factory.</summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [Test]
+    public async Task ReadValuesWithoutOutputDefaultUsesChangelogName()
+    {
+        var options = CommandOptionsFactory.CreateOptions();
+        options.OutputNameOption.DefaultValueFactory = null;
+        var root = CommandOptionsFactory.CreateRootCommand(options);
+
+        var values = CommandArgumentResolver.ReadValues(root.Parse([]), options);
+
+        await Assert.That(values.OutputName).IsEqualTo(CommandOptionsFactory.DefaultOutputName);
+    }
+
     /// <summary>Tests that explicitly-provided options are read in preference to the environment.</summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     [Test]
@@ -30,6 +70,8 @@ public class CommandArgumentResolverTests
         await Assert.That(values.Owner).IsEqualTo("own");
         await Assert.That(values.Repo).IsEqualTo("rep");
         await Assert.That(values.Version).IsEqualTo("9.9.9");
+        await Assert.That(values.TagPrefix).IsNull();
+        await Assert.That(values.ReleaseTag).IsNull();
     }
 
     /// <summary>Tests that missing options fall back to the GitHub Actions environment.</summary>

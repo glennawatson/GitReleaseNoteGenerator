@@ -35,7 +35,9 @@ internal static class CommandArgumentResolver
             parseResult.GetValue(options.VersionOption),
             parseResult.GetValue(options.OutputFileOption),
             parseResult.GetValue(options.GitHubOutputOption),
-            parseResult.GetValue(options.OutputNameOption) ?? CommandOptionsFactory.DefaultOutputName);
+            parseResult.GetValue(options.OutputNameOption) ?? CommandOptionsFactory.DefaultOutputName,
+            parseResult.GetValue(options.TagPrefixOption),
+            parseResult.GetValue(options.ReleaseTagOption));
     }
 
     /// <summary>Validates the command values that must be provided by arguments or environment variables.</summary>
@@ -79,6 +81,8 @@ internal static class CommandArgumentResolver
             values.Version!,
             values.OutputFile,
             values.GitHubOutput,
-            values.OutputName);
+            values.OutputName,
+            values.TagPrefix,
+            values.ReleaseTag);
     }
 }

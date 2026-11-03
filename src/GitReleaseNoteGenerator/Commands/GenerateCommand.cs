@@ -47,7 +47,7 @@ internal static partial class GenerateCommand
         var options = CommandOptionsFactory.CreateOptions();
         var rootCommand = CommandOptionsFactory.CreateRootCommand(options);
 
-        rootCommand.SetAction(async (parseResult, _) => await ExecuteAsync(parseResult, options).ConfigureAwait(false));
+        rootCommand.SetAction(async (parseResult, cancellationToken) => await ExecuteAsync(parseResult, options, cancellationToken).ConfigureAwait(false));
 
         return rootCommand;
     }
@@ -55,8 +55,9 @@ internal static partial class GenerateCommand
     /// <summary>Executes release note generation for parsed command-line input.</summary>
     /// <param name="parseResult">The parse result from the command-line invocation.</param>
     /// <param name="options">The configured command options.</param>
+    /// <param name="cancellationToken">A token that cancels release discovery.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    private static async Task ExecuteAsync(ParseResult parseResult, GenerateCommandOptions options)
+    private static async Task ExecuteAsync(ParseResult parseResult, GenerateCommandOptions options, CancellationToken cancellationToken)
     {
         using var loggerFactory = CreateLoggerFactory();
         var logger = loggerFactory.CreateLogger("GitReleaseNoteGenerator");
@@ -75,15 +76,15 @@ internal static partial class GenerateCommand
                 return;
             }
 
-            var releaseNotes = await GenerateReleaseNotesAsync(arguments, logger).ConfigureAwait(false);
+            var releaseNotes = await GenerateReleaseNotesAsync(arguments, logger, cancellationToken).ConfigureAwait(false);
 
             await WriteReleaseNotesAsync(releaseNotes, arguments, logger).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             LogUnhandledError(logger, ex);
-            await Console.Error.WriteLineAsync($"Error: {ex.Message}").ConfigureAwait(false);
             Environment.ExitCode = 1;
+            await Console.Error.WriteLineAsync($"Error: {ex.Message}".AsMemory(), CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -132,25 +133,25 @@ internal static partial class GenerateCommand
         switch (status)
         {
             case CommandValidationStatus.TokenMissing:
-            {
-                LogTokenRequired(logger);
-                await Console.Error.WriteLineAsync(TokenMissingMessage).ConfigureAwait(false);
-                break;
-            }
+                {
+                    LogTokenRequired(logger);
+                    await Console.Error.WriteLineAsync(TokenMissingMessage).ConfigureAwait(false);
+                    break;
+                }
 
             case CommandValidationStatus.VersionMissing:
-            {
-                LogVersionRequired(logger);
-                await Console.Error.WriteLineAsync(VersionMissingMessage).ConfigureAwait(false);
-                break;
-            }
+                {
+                    LogVersionRequired(logger);
+                    await Console.Error.WriteLineAsync(VersionMissingMessage).ConfigureAwait(false);
+                    break;
+                }
 
             default:
-            {
-                LogRepoRequired(logger);
-                await Console.Error.WriteLineAsync(RepositoryMissingMessage).ConfigureAwait(false);
-                break;
-            }
+                {
+                    LogRepoRequired(logger);
+                    await Console.Error.WriteLineAsync(RepositoryMissingMessage).ConfigureAwait(false);
+                    break;
+                }
         }
 
         Environment.ExitCode = 1;
@@ -159,8 +160,9 @@ internal static partial class GenerateCommand
     /// <summary>Generates release notes using the resolved command arguments.</summary>
     /// <param name="arguments">The resolved command arguments.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="cancellationToken">A token that cancels release discovery.</param>
     /// <returns>The generated release notes.</returns>
-    private static async Task<string> GenerateReleaseNotesAsync(GenerateCommandArguments arguments, ILogger logger)
+    private static async Task<string> GenerateReleaseNotesAsync(GenerateCommandArguments arguments, ILogger logger, CancellationToken cancellationToken)
     {
         Console.WriteLine(
             $"Generating release notes for {arguments.Owner}/{arguments.Repo} version {arguments.Version}...");
@@ -173,7 +175,9 @@ internal static partial class GenerateCommand
             arguments.Repo,
             arguments.Version,
             arguments.BaseRef,
-            arguments.HeadRef).ConfigureAwait(false);
+            arguments.HeadRef,
+            new(arguments.TagPrefix, arguments.ReleaseTag),
+            cancellationToken).ConfigureAwait(false);
 
         Console.WriteLine($"Release notes generated ({releaseNotes.Length} characters)");
 

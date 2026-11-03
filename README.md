@@ -37,9 +37,44 @@ git-release-notes --token <GITHUB_PAT> --owner myorg --repo myrepo --release-ver
 | `--base-ref` | string | Latest release tag | Base ref to compare from |
 | `--head-ref` | string | Default branch | Head ref to compare to |
 | `--release-version` | string | **required** | Version string for the heading |
+| `--tag-prefix` | string | _(none)_ | Select the most recently published stable release whose tag starts with this prefix |
+| `--release-tag` | string | Inferred from version | Exact new tag for changelog links; overrides prefix inference |
 | `--output-file` | path | _(none)_ | Write release notes to a file |
 | `--github-output` | flag | `false` | Write to `GITHUB_OUTPUT` |
 | `--output-name` | string | `changelog` | Variable name for `GITHUB_OUTPUT` |
+
+## Independent Release Streams
+
+Repositories can publish several package families with separate versions. Use `--tag-prefix` to
+select a family's baseline. Prefix matching is exact and case-sensitive. The baseline is the most
+recently published matching stable release, excluding drafts, pre-releases and the new release's
+own tag. All release pages are searched. This selects by publication time, not semantic version.
+
+An explicit `--base-ref` takes priority. Use it for backports or when comparing pre-release
+channels. If the stream has no published stable release, notes include all history reachable from
+the selected head. They do not fall back to another family's release.
+
+The new changelog tag defaults to the prefix plus `--release-version`. A version that already
+starts with the prefix is used unchanged. `--release-tag` overrides this for custom tag names.
+Pass the built commit as `--head-ref` so the notes describe the source that was packaged.
+
+For example, when both SourceGenerators and Binding ship, generate a separate notes file for
+each release, using the same built commit and each family's own version:
+
+```bash
+git-release-notes --release-version 4.3.0 --tag-prefix v --release-tag v4.3.0 --head-ref BUILT_SHA --output-file sourcegenerators-notes.md
+git-release-notes --release-version 9.2.0 --tag-prefix binding-v --release-tag binding-v9.2.0 --head-ref BUILT_SHA --output-file binding-notes.md
+```
+
+In GitHub Actions, use distinct `--output-name` values such as `sourcegenerators_notes` and
+`binding_notes` when both invocations write to `GITHUB_OUTPUT`. Give the GitHub releases titles
+that include the family and version. The release workflow chooses whether one or both families
+ship; the generator only produces notes. It collects every commit in each comparison range and
+does not filter by package, path, PR label or commit scope.
+
+Existing invocations remain valid. Without `--tag-prefix`, automatic baseline selection uses the
+repository's latest release. Without `--release-tag` or `--tag-prefix`, changelog tag inference
+keeps the existing bare-version and `v`-prefix behaviour.
 
 ## Commit Prefix Categories
 

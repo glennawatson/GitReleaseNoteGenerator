@@ -17,6 +17,7 @@ namespace GitReleaseNoteGenerator.Infrastructure;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(GitHubRepository))]
 [JsonSerializable(typeof(GitHubRelease))]
+[JsonSerializable(typeof(IReadOnlyList<GitHubRelease>))]
 [JsonSerializable(typeof(GitHubComparison))]
 [JsonSerializable(typeof(GitHubCommit))]
 [JsonSerializable(typeof(IReadOnlyList<GitHubCommit>))]

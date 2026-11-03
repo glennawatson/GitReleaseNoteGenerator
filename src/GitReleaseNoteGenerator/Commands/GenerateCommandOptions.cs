@@ -16,6 +16,8 @@ namespace GitReleaseNoteGenerator.Commands;
 /// <param name="OutputFileOption">The option for the output file.</param>
 /// <param name="GitHubOutputOption">The option for writing to GitHub Actions output.</param>
 /// <param name="OutputNameOption">The option for the GitHub Actions output name.</param>
+/// <param name="TagPrefixOption">The option selecting a release stream by tag prefix.</param>
+/// <param name="ReleaseTagOption">The option for the exact tag used in changelog links.</param>
 internal sealed record GenerateCommandOptions(
     Option<string?> TokenOption,
     Option<string?> OwnerOption,
@@ -25,4 +27,6 @@ internal sealed record GenerateCommandOptions(
     Option<string?> VersionOption,
     Option<FileInfo?> OutputFileOption,
     Option<bool> GitHubOutputOption,
-    Option<string> OutputNameOption);
+    Option<string> OutputNameOption,
+    Option<string?> TagPrefixOption,
+    Option<string?> ReleaseTagOption);

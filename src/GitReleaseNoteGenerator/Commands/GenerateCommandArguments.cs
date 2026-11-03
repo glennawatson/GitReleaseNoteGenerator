@@ -14,6 +14,8 @@ namespace GitReleaseNoteGenerator.Commands;
 /// <param name="OutputFile">The file to write release notes to.</param>
 /// <param name="GitHubOutput">A value indicating whether to write to GitHub Actions output.</param>
 /// <param name="OutputName">The GitHub Actions output name.</param>
+/// <param name="TagPrefix">The release stream's tag prefix, or null for the repository default.</param>
+/// <param name="ReleaseTag">The exact new release tag for changelog links, or null to infer it.</param>
 internal sealed record GenerateCommandArguments(
     string Token,
     string Owner,
@@ -23,4 +25,6 @@ internal sealed record GenerateCommandArguments(
     string Version,
     FileInfo? OutputFile,
     bool GitHubOutput,
-    string OutputName);
+    string OutputName,
+    string? TagPrefix = null,
+    string? ReleaseTag = null);

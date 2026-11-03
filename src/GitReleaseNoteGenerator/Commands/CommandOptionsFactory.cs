@@ -34,6 +34,16 @@ internal static class CommandOptionsFactory
 
         var outputNameOption = new Option<string>("--output-name") { Description = "Variable name when writing to GITHUB_OUTPUT", DefaultValueFactory = static _ => DefaultOutputName };
 
+        var tagPrefixOption = new Option<string?>("--tag-prefix")
+        {
+            Description = "Select the most recently published stable release with this tag prefix as the base (unless --base-ref is supplied)",
+        };
+
+        var releaseTagOption = new Option<string?>("--release-tag")
+        {
+            Description = "Exact new release tag for changelog links (defaults to the tag prefix plus release version when --tag-prefix is supplied)",
+        };
+
         return new(
             tokenOption,
             ownerOption,
@@ -43,7 +53,9 @@ internal static class CommandOptionsFactory
             versionOption,
             outputFileOption,
             githubOutputOption,
-            outputNameOption);
+            outputNameOption,
+            tagPrefixOption,
+            releaseTagOption);
     }
 
     /// <summary>Creates the root command populated with the supplied options.</summary>
@@ -64,6 +76,8 @@ internal static class CommandOptionsFactory
             options.OutputFileOption,
             options.GitHubOutputOption,
             options.OutputNameOption,
+            options.TagPrefixOption,
+            options.ReleaseTagOption,
         };
     }
 }
