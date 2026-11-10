@@ -25,14 +25,14 @@
   <Choose>
     <When Condition="'$(TargetFramework)' == 'net11.0'">
       <ItemGroup>
-        <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-rc.3.26522.148" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-rc.3.26522.148" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0" />
       </ItemGroup>
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.15" />
       </ItemGroup>
     </Otherwise>
   </Choose>
