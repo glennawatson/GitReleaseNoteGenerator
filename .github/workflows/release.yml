@@ -1,5 +1,4 @@
 name: Release
-
 on:
   workflow_dispatch:
     inputs:
@@ -8,32 +7,27 @@ on:
         required: true
         type: choice
         options:
-          - '(pick one)'
-          - major
-          - minor
-          - patch
-
+        - '(pick one)'
+        - major
+        - minor
+        - patch
       preRelease:
         description: 'Pre-release channel (e.g. beta, rc). The version becomes <bumped-core>-<channel>.<N>. Empty = stable release.'
         required: false
         type: string
         default: ''
-
       versionOverride:
         description: 'Exact version to release (e.g. 4.2.5, tagged v4.2.5), bypassing the bump from the latest tag. Leave bump at "(pick one)".'
         required: false
         type: string
         default: ''
-
       sourceRef:
         description: 'Git ref (tag, branch or SHA) to release from. Empty = the ref this run was started on.'
         required: false
         type: string
         default: ''
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,76 +39,63 @@ jobs:
       prerelease: ${{ steps.tagname.outputs.prerelease }}
       sourceSha: ${{ steps.tagname.outputs.sha }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ inputs.sourceRef }}
-          fetch-depth: 0
-
-      - name: Setup .NET Environment
-        uses: glennawatson/actions-common/.github/actions/dotnet-environment@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          stamp-version: 'false'
-
-      # The create-release job creates the tag, so a failed build or sign leaves no orphan tag.
-      - name: Compute version and tag
-        if: inputs.bump != '(pick one)' && inputs.versionOverride == ''
-        id: bump
-        uses: glennawatson/actions-common/.github/actions/compute-version-and-tag@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          bump: ${{ inputs.bump }}
-          tag-prefix: 'v'
-          pre-release-id: ${{ inputs.preRelease }}
-          push-tag: 'false'
-
-      # compute-version-and-tag rejects an existing bump tag; an existing override tag is rejected here.
-      - name: Resolve release tag
-        id: tagname
-        uses: glennawatson/actions-common/.github/actions/release-tag-resolve@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          bump-tag: ${{ steps.bump.outputs.tag }}
-          bump-prerelease: ${{ steps.bump.outputs.prerelease }}
-          version-override: ${{ inputs.versionOverride }}
-          tag-prefix: v
-
-      - name: Stamp version with MinVer
-        id: minver
-        uses: glennawatson/actions-common/.github/actions/minver@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          version-override: ${{ inputs.versionOverride != '' && inputs.versionOverride || steps.bump.outputs.version }}
-
-      - name: Build
-        uses: glennawatson/actions-common/.github/actions/dotnet-build@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          solution-file: GitReleaseNoteGenerator.slnx
-
-      # The tool writes its own release notes, from the build that is about to ship.
-      - name: Generate release notes
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.minver.outputs.SemVer2 }}
-        run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --configuration Release --framework net11.0 -- --release-version "$RELEASE_VERSION" --output-file "${GITHUB_WORKSPACE}/release-notes.md"
-
-      - name: Pack NuGet packages
-        shell: bash
-        working-directory: src
-        run: dotnet pack GitReleaseNoteGenerator.slnx --no-build --configuration Release -o "${GITHUB_WORKSPACE}/packages"
-
-      - name: Upload unsigned packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: unsigned-nuget
-          path: packages/*.nupkg
-          if-no-files-found: error
-
-      - name: Upload release notes
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: release-notes
-          path: release-notes.md
-          if-no-files-found: error
-
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ inputs.sourceRef }}
+        fetch-depth: 0
+    - name: Setup .NET Environment
+      uses: glennawatson/actions-common/.github/actions/dotnet-environment@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        stamp-version: 'false'
+    - name: Compute version and tag
+      if: inputs.bump != '(pick one)' && inputs.versionOverride == ''
+      id: bump
+      uses: glennawatson/actions-common/.github/actions/compute-version-and-tag@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        bump: ${{ inputs.bump }}
+        tag-prefix: 'v'
+        pre-release-id: ${{ inputs.preRelease }}
+        push-tag: 'false'
+    - name: Resolve release tag
+      id: tagname
+      uses: glennawatson/actions-common/.github/actions/release-tag-resolve@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        bump-tag: ${{ steps.bump.outputs.tag }}
+        bump-prerelease: ${{ steps.bump.outputs.prerelease }}
+        version-override: ${{ inputs.versionOverride }}
+        tag-prefix: v
+    - name: Stamp version with MinVer
+      id: minver
+      uses: glennawatson/actions-common/.github/actions/minver@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        version-override: ${{ inputs.versionOverride != '' && inputs.versionOverride || steps.bump.outputs.version }}
+    - name: Build
+      uses: glennawatson/actions-common/.github/actions/dotnet-build@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        solution-file: GitReleaseNoteGenerator.slnx
+    - name: Generate release notes
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        RELEASE_VERSION: ${{ steps.minver.outputs.SemVer2 }}
+      run: dotnet run --project src/GitReleaseNoteGenerator/GitReleaseNoteGenerator.csproj --no-build --configuration Release --framework net11.0 -- --release-version "$RELEASE_VERSION" --output-file "${GITHUB_WORKSPACE}/release-notes.md"
+    - name: Pack NuGet packages
+      shell: bash
+      working-directory: src
+      run: dotnet pack GitReleaseNoteGenerator.slnx --no-build --configuration Release -o "${GITHUB_WORKSPACE}/packages"
+    - name: Upload unsigned packages
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: unsigned-nuget
+        path: packages/*.nupkg
+        if-no-files-found: error
+    - name: Upload release notes
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: release-notes
+        path: release-notes.md
+        if-no-files-found: error
   sign:
     needs: build
     runs-on: ubuntu-latest
@@ -122,37 +103,32 @@ jobs:
       name: release
     permissions:
       contents: read
-    # Composite actions cannot declare secret inputs, so certum-sign reads these from env.
     env:
       CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
       CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
       CERTUM_CERT_FINGERPRINT: ${{ secrets.CERTUM_CERT_FINGERPRINT }}
     steps:
-      - name: Setup .NET Environment
-        uses: glennawatson/actions-common/.github/actions/dotnet-environment@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          stamp-version: 'false'
-
-      - name: Download unsigned packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: unsigned-nuget
-          path: signed
-
-      - name: Sign packages with Certum SimplySign
-        uses: glennawatson/actions-common/.github/actions/certum-sign@4882558c56a8879548981c0dd01f99363d00b332 # main
-        with:
-          packages-glob: 'signed/*.nupkg'
-
-      - name: Upload signed packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: signed-nuget
-          path: signed/*.nupkg
-          if-no-files-found: error
-
+    - name: Setup .NET Environment
+      uses: glennawatson/actions-common/.github/actions/dotnet-environment@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        stamp-version: 'false'
+    - name: Download unsigned packages
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: unsigned-nuget
+        path: signed
+    - name: Sign packages with Certum SimplySign
+      uses: glennawatson/actions-common/.github/actions/certum-sign@381282a6137c4f3c099ff80d9ee909e5d262998a
+      with:
+        packages-glob: 'signed/*.nupkg'
+    - name: Upload signed packages
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: signed-nuget
+        path: signed/*.nupkg
+        if-no-files-found: error
   publish-nuget:
-    needs: [ build, sign ]
+    needs: [build, sign]
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -160,60 +136,53 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
-        with:
-          dotnet-version: 11.0.x
-
-      - name: Download signed packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: signed-nuget
-          path: signed
-
-      - name: NuGet login (OIDC trusted publishing)
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
-        id: nuget-login
-        with:
-          user: ${{ secrets.NUGET_USER }}
-
-      - name: Push to NuGet
-        shell: bash
-        env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        run: dotnet nuget push "signed/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY"
-
+    - name: Setup .NET
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+      with:
+        dotnet-version: 11.0.x
+    - name: Download signed packages
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: signed-nuget
+        path: signed
+    - name: NuGet login (OIDC trusted publishing)
+      uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841
+      id: nuget-login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+    - name: Push to NuGet
+      shell: bash
+      env:
+        NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+      run: dotnet nuget push "signed/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY"
   create-release:
-    needs: [ build, publish-nuget ]
+    needs: [build, publish-nuget]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
-        with:
-          dotnet-version: 11.0.x
-
-      - name: Download signed packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: signed-nuget
-          path: signed
-
-      - name: Download release notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: release-notes
-          path: .
-
-      # Also creates the tag, pinned by --target to the commit the build job built.
-      - name: Create GitHub Release
-        uses: glennawatson/actions-common/.github/actions/github-release-create@4882558c56a8879548981c0dd01f99363d00b332 # main
-        env:
-          GH_TOKEN: ${{ github.token }}
-        with:
-          repository: ${{ github.repository }}
-          tag: ${{ needs.build.outputs.tag }}
-          target: ${{ needs.build.outputs.sourceSha }}
-          title: ${{ needs.build.outputs.semver2 }}
-          prerelease: ${{ needs.build.outputs.prerelease }}
+    - name: Setup .NET
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+      with:
+        dotnet-version: 11.0.x
+    - name: Download signed packages
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: signed-nuget
+        path: signed
+    - name: Download release notes
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: release-notes
+        path: .
+    - name: Create GitHub Release
+      uses: glennawatson/actions-common/.github/actions/github-release-create@381282a6137c4f3c099ff80d9ee909e5d262998a
+      env:
+        GH_TOKEN: ${{ github.token }}
+      with:
+        repository: ${{ github.repository }}
+        tag: ${{ needs.build.outputs.tag }}
+        target: ${{ needs.build.outputs.sourceSha }}
+        title: ${{ needs.build.outputs.semver2 }}
+        prerelease: ${{ needs.build.outputs.prerelease }}
+...
