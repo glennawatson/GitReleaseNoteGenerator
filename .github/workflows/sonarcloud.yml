@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   sonarcloud:
-    uses: glennawatson/actions-common/.github/workflows/workflow-common-sonarcloud.yml@4882558c56a8879548981c0dd01f99363d00b332 # main
+    uses: glennawatson/actions-common/.github/workflows/workflow-common-sonarcloud.yml@d1a1652f1d0e4ad7d2f77bda30b58f4b42ab0748 # main
     with:
       solutionFile: GitReleaseNoteGenerator.slnx
       runsOn: ubuntu-latest
