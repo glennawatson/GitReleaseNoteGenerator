@@ -13,8 +13,6 @@
     <PackageVersion Include="System.CommandLine" Version="3.0.0" />
     <PackageVersion Include="Refit" Version="16.4.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.404" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
     <PackageVersion Include="TUnit" Version="1.84.0" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
@@ -23,15 +21,18 @@
 
   <!-- The runtime's own packages track the target framework: each TFM takes the newest release of its major version.
        Renovate keeps each line on its own major (see .github/renovate.json). -->
+
   <Choose>
-    <When Condition="'$(TargetFramework)' == 'net11.0'">
+    <When Condition="'$(TargetFramework)' != '' And $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
       <ItemGroup>
+        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
         <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0" />
       </ItemGroup>
     </When>
     <Otherwise>
       <ItemGroup>
+        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.404" />
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
         <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.15" />
       </ItemGroup>

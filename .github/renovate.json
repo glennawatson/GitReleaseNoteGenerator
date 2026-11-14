@@ -30,20 +30,6 @@
       "groupName": "Microsoft.Extensions.Logging"
     },
     {
-      "description": "Directory.Packages.props pins the runtime packages per target framework. The net10.0 line stays on 10.x.",
-      "matchManagers": ["nuget"],
-      "matchPackageNames": ["/^Microsoft\\.Extensions\\./"],
-      "matchCurrentVersion": "/^10\\./",
-      "allowedVersions": "/^10\\./"
-    },
-    {
-      "description": "Directory.Packages.props pins the runtime packages per target framework. The net11.0 line stays on 11.x; a newer major means adding a target framework.",
-      "matchManagers": ["nuget"],
-      "matchPackageNames": ["/^Microsoft\\.Extensions\\./"],
-      "matchCurrentVersion": "/^11\\./",
-      "allowedVersions": "/^11\\./"
-    },
-    {
       "description": "StyleSharp, PerformanceSharp and SecuritySharp ship from one pipeline and share $(RoslynCommonAnalyzersVersion), so one PR moves the property.",
       "matchManagers": ["nuget"],
       "matchPackageNames": ["/^(StyleSharp|PerformanceSharp|SecuritySharp)\\.Analyzers$/"],
@@ -82,6 +68,40 @@
       "matchPackageNames": ["ghcr.io/reactiveui/certum-signer"],
       "matchUpdateTypes": ["digest", "pin", "pinDigest"],
       "automerge": true
+    },
+    {
+      "description": "Keep .NET 10 package entries on 10.x.",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": [
+        "/^Microsoft\\.Extensions\\./",
+        "/^Microsoft\\.AspNetCore\\./",
+        "/^Microsoft\\.NETCore\\./",
+        "/^Microsoft\\.SourceLink\\./",
+        "Microsoft.Build.Tasks.Git",
+        "/^System\\./"
+      ],
+      "matchCurrentValue": "/^10\\./",
+      "allowedVersions": "/^10\\./",
+      "ignoreUnstable": true,
+      "groupName": ".NET 10 packages",
+      "groupSlug": "dotnet-10"
+    },
+    {
+      "description": "Keep .NET 11 package entries on 11.x.",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": [
+        "/^Microsoft\\.Extensions\\./",
+        "/^Microsoft\\.AspNetCore\\./",
+        "/^Microsoft\\.NETCore\\./",
+        "/^Microsoft\\.SourceLink\\./",
+        "Microsoft.Build.Tasks.Git",
+        "/^System\\./"
+      ],
+      "matchCurrentValue": "/^11\\./",
+      "allowedVersions": "/^11\\./",
+      "ignoreUnstable": false,
+      "groupName": ".NET 11 packages",
+      "groupSlug": "dotnet-11"
     }
   ]
 }
