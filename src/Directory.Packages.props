@@ -10,11 +10,12 @@
     <RoslynCommonAnalyzersVersion>5.1.4</RoslynCommonAnalyzersVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="System.CommandLine" Version="3.0.0-rc.3.26522.148" />
+    <PackageVersion Include="System.CommandLine" Version="3.0.0" />
     <PackageVersion Include="Refit" Version="16.4.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
-    <PackageVersion Include="TUnit" Version="1.78.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.404" Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
+    <PackageVersion Include="TUnit" Version="1.84.0" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="SecuritySharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
@@ -25,14 +26,14 @@
   <Choose>
     <When Condition="'$(TargetFramework)' == 'net11.0'">
       <ItemGroup>
-        <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-rc.3.26522.148" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-rc.3.26522.148" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0" />
       </ItemGroup>
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.15" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.15" />
       </ItemGroup>
     </Otherwise>
   </Choose>
