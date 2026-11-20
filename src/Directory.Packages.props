@@ -13,7 +13,7 @@
     <PackageVersion Include="System.CommandLine" Version="3.0.0" />
     <PackageVersion Include="Refit" Version="16.4.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="TUnit" Version="1.84.0" />
+    <PackageVersion Include="TUnit" Version="1.87.12" />
     <PackageVersion Include="StyleSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="PerformanceSharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
     <PackageVersion Include="SecuritySharp.Analyzers" Version="$(RoslynCommonAnalyzersVersion)" />
